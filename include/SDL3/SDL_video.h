@@ -808,14 +808,28 @@ extern SDL_DECLSPEC SDL_Window **SDLCALL SDL_GetWindows(int *count);
  *
  * - `SDL_WINDOW_FULLSCREEN`: fullscreen window at desktop resolution
  * - `SDL_WINDOW_OPENGL`: window usable with an OpenGL context
- * - `SDL_WINDOW_VULKAN`: window usable with a Vulkan instance
- * - `SDL_WINDOW_METAL`: window usable with a Metal instance
+ * - `SDL_WINDOW_OCCLUDED`: window partially or completely obscured by another window
  * - `SDL_WINDOW_HIDDEN`: window is not visible
  * - `SDL_WINDOW_BORDERLESS`: no window decoration
  * - `SDL_WINDOW_RESIZABLE`: window can be resized
  * - `SDL_WINDOW_MINIMIZED`: window is minimized
  * - `SDL_WINDOW_MAXIMIZED`: window is maximized
  * - `SDL_WINDOW_MOUSE_GRABBED`: window has grabbed mouse focus
+ * - `SDL_WINDOW_INPUT_FOCUS`: window has input focus
+ * - `SDL_WINDOW_MOUSE_FOCUS`: window has mouse focus
+ * - `SDL_WINDOW_EXTERNAL`: window not created by SDL
+ * - `SDL_WINDOW_MODAL`: window is modal
+ * - `SDL_WINDOW_HIGH_PIXEL_DENSITY`: window uses high pixel density back buffer if possible
+ * - `SDL_WINDOW_MOUSE_CAPTURE`: window has mouse captured (unrelated to MOUSE_GRABBED)
+ * - `SDL_WINDOW_ALWAYS_ON_TOP`: window should always be above others
+ * - `SDL_WINDOW_UTILITY`: window should be treated as a utility window, not showing in the task bar and window list
+ * - `SDL_WINDOW_TOOLTIP`: window should be treated as a tooltip and does not get mouse or keyboard focus, requires a parent window
+ * - `SDL_WINDOW_POPUP_MENU`: window should be treated as a popup menu, requires a parent window
+ * - `SDL_WINDOW_KEYBOARD_GRABBED`: window has grabbed keyboard input
+ * - `SDL_WINDOW_VULKAN`: window usable with a Vulkan instance
+ * - `SDL_WINDOW_METAL`: window usable with a Metal instance
+ * - `SDL_WINDOW_TRANSPARENT`: window with transparent buffer
+ * - `SDL_WINDOW_NOT_FOCUSABLE`: window should not be focusable
  *
  * The SDL_Window is implicitly shown if SDL_WINDOW_HIDDEN is not set.
  *
@@ -852,7 +866,7 @@ extern SDL_DECLSPEC SDL_Window **SDLCALL SDL_GetWindows(int *count);
  * \param title the title of the window, in UTF-8 encoding.
  * \param w the width of the window.
  * \param h the height of the window.
- * \param flags 0, or one or more SDL_WindowFlags OR'd together.
+ * \param flags 0, or one or more SDL_ OR'd together.
  * \returns the window that was created or NULL on failure; call
  *          SDL_GetError() for more information.
  *
@@ -862,7 +876,7 @@ extern SDL_DECLSPEC SDL_Window **SDLCALL SDL_GetWindows(int *count);
  * \sa SDL_CreateWindowWithProperties
  * \sa SDL_DestroyWindow
  */
-extern SDL_DECLSPEC SDL_Window *SDLCALL SDL_CreateWindow(const char *title, int w, int h, SDL_WindowFlags flags);
+extern SDL_DECLSPEC SDL_Window *SDLCALL SDL_CreateWindow(const char *title, int w, int h, SDL_ flags);
 
 /**
  * Create a child popup window of the specified parent window.
@@ -906,7 +920,7 @@ extern SDL_DECLSPEC SDL_Window *SDLCALL SDL_CreateWindow(const char *title, int 
  * \param w the width of the window.
  * \param h the height of the window.
  * \param flags SDL_WINDOW_TOOLTIP or SDL_WINDOW_POPUP_MENU, and zero or more
- *              additional SDL_WindowFlags OR'd together.
+ *              additional SDL_ OR'd together.
  * \returns the window that was created or NULL on failure; call
  *          SDL_GetError() for more information.
  *
@@ -917,7 +931,7 @@ extern SDL_DECLSPEC SDL_Window *SDLCALL SDL_CreateWindow(const char *title, int 
  * \sa SDL_DestroyWindow
  * \sa SDL_GetWindowParent
  */
-extern SDL_DECLSPEC SDL_Window *SDLCALL SDL_CreatePopupWindow(SDL_Window *parent, int offset_x, int offset_y, int w, int h, SDL_WindowFlags flags);
+extern SDL_DECLSPEC SDL_Window *SDLCALL SDL_CreatePopupWindow(SDL_Window *parent, int offset_x, int offset_y, int w, int h, SDL_ flags);
 
 /**
  * Create a window with the specified properties.
@@ -1271,7 +1285,7 @@ extern SDL_DECLSPEC SDL_PropertiesID SDLCALL SDL_GetWindowProperties(SDL_Window 
  * Get the window flags.
  *
  * \param window the window to query.
- * \returns a mask of the SDL_WindowFlags associated with `window`.
+ * \returns a mask of the SDL_ associated with `window`.
  *
  * \since This function is available since SDL 3.0.0.
  *
@@ -1283,7 +1297,7 @@ extern SDL_DECLSPEC SDL_PropertiesID SDLCALL SDL_GetWindowProperties(SDL_Window 
  * \sa SDL_SetWindowMouseGrab
  * \sa SDL_ShowWindow
  */
-extern SDL_DECLSPEC SDL_WindowFlags SDLCALL SDL_GetWindowFlags(SDL_Window *window);
+extern SDL_DECLSPEC SDL_ SDLCALL SDL_Get(SDL_Window *window);
 
 /**
  * Set the title of a window.
@@ -1640,7 +1654,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_GetWindowMaximumSize(SDL_Window *window, int
  *
  * \since This function is available since SDL 3.0.0.
  *
- * \sa SDL_GetWindowFlags
+ * \sa SDL_Get
  */
 extern SDL_DECLSPEC int SDLCALL SDL_SetWindowBordered(SDL_Window *window, SDL_bool bordered);
 
@@ -1660,7 +1674,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_SetWindowBordered(SDL_Window *window, SDL_bo
  *
  * \since This function is available since SDL 3.0.0.
  *
- * \sa SDL_GetWindowFlags
+ * \sa SDL_Get
  */
 extern SDL_DECLSPEC int SDLCALL SDL_SetWindowResizable(SDL_Window *window, SDL_bool resizable);
 
@@ -1678,7 +1692,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_SetWindowResizable(SDL_Window *window, SDL_b
  *
  * \since This function is available since SDL 3.0.0.
  *
- * \sa SDL_GetWindowFlags
+ * \sa SDL_Get
  */
 extern SDL_DECLSPEC int SDLCALL SDL_SetWindowAlwaysOnTop(SDL_Window *window, SDL_bool on_top);
 
