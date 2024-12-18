@@ -23,6 +23,30 @@
  * # CategoryEvents
  *
  * Event queue management.
+ *
+ * It's extremely common--often required--that an app deal with SDL's event
+ * queue. Almost all useful information about interactions with the real world
+ * flow through here: the user interacting with the computer and app, hardware
+ * coming and going, the system changing in some way, etc.
+ *
+ * An app generally takes a moment, perhaps at the start of a new frame, to
+ * examine any events that have occured since the last time and process or
+ * ignore them. This is generally done by calling SDL_PollEvent() in a loop
+ * until it returns false (or, if using the main callbacks, events are
+ * provided one at a time in calls to SDL_AppEvent() before the next call to
+ * SDL_AppIterate(); in this scenario, the app does not call SDL_PollEvent()
+ * at all).
+ *
+ * There is other forms of control, too: SDL_PeepEvents() has more
+ * functionality at the cost of more complexity, and SDL_WaitEvents() can
+ * block the process until something interesting happens, which might be
+ * beneficial for certain types of programs on low-power hardware. One may
+ * also call SDL_AddEventWatch() to set a callback when new events arrive.
+ *
+ * The app is free to generate their own events, too: SDL_PushEvent allows the
+ * app to put events onto the queue for later retrieval; SDL_RegisterEvents
+ * can guarantee that these events have a type that isn't in use by other
+ * parts of the system.
  */
 
 #ifndef SDL_events_h_
@@ -1034,9 +1058,7 @@ SDL_COMPILE_TIME_ASSERT(SDL_Event, sizeof(SDL_Event) == sizeof(((SDL_Event *)NUL
  * polling or waiting for events (e.g. you are filtering them), then you must
  * call SDL_PumpEvents() to force an event queue update.
  *
- * \threadsafety This should only be run in the thread that initialized the
- *               video subsystem, and for extra safety, you should consider
- *               only doing those things on the main thread in any case.
+ * \threadsafety This function should only be called on the main thread.
  *
  * \since This function is available since SDL 3.1.3.
  *
@@ -1234,9 +1256,7 @@ extern SDL_DECLSPEC void SDLCALL SDL_FlushEvents(Uint32 minType, Uint32 maxType)
  *              the queue, or NULL.
  * \returns true if this got an event or false if there are none available.
  *
- * \threadsafety This should only be run in the thread that initialized the
- *               video subsystem, and for extra safety, you should consider
- *               only doing those things on the main thread in any case.
+ * \threadsafety This function should only be called on the main thread.
  *
  * \since This function is available since SDL 3.1.3.
  *
@@ -1260,9 +1280,7 @@ extern SDL_DECLSPEC bool SDLCALL SDL_PollEvent(SDL_Event *event);
  * \returns true on success or false if there was an error while waiting for
  *          events; call SDL_GetError() for more information.
  *
- * \threadsafety This should only be run in the thread that initialized the
- *               video subsystem, and for extra safety, you should consider
- *               only doing those things on the main thread in any case.
+ * \threadsafety This function should only be called on the main thread.
  *
  * \since This function is available since SDL 3.1.3.
  *
@@ -1292,9 +1310,7 @@ extern SDL_DECLSPEC bool SDLCALL SDL_WaitEvent(SDL_Event *event);
  * \returns true if this got an event or false if the timeout elapsed without
  *          any events available.
  *
- * \threadsafety This should only be run in the thread that initialized the
- *               video subsystem, and for extra safety, you should consider
- *               only doing those things on the main thread in any case.
+ * \threadsafety This function should only be called on the main thread.
  *
  * \since This function is available since SDL 3.1.3.
  *

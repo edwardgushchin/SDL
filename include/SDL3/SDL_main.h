@@ -35,6 +35,13 @@
  *
  * SDL will take care of platform specific details on how it gets called.
  *
+ * This is also where an app can be configured to use the main callbacks, via
+ * the SDL_MAIN_USE_CALLBACKS macro.
+ *
+ * This is a "single-header library," which is to say that including this
+ * header inserts code into your program, and you should only include it once
+ * in most cases. SDL.h does not include this header automatically.
+ *
  * For more information, see:
  *
  * https://wiki.libsdl.org/SDL3/README/main-functions
@@ -132,13 +139,6 @@
 
           If you provide this yourself, you may define SDL_MAIN_HANDLED
         */
-        #define SDL_MAIN_AVAILABLE
-
-    #elif defined(SDL_PLATFORM_NGAGE)
-        /*
-        TODO: not sure if it should be SDL_MAIN_NEEDED, in SDL2 ngage had a
-                main implementation, but wasn't mentioned in SDL_main.h
-         */
         #define SDL_MAIN_AVAILABLE
 
     #endif

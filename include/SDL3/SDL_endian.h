@@ -22,7 +22,20 @@
 /**
  * # CategoryEndian
  *
- * Functions for reading and writing endian-specific values.
+ * Functions converting endian-specific values to different byte orders.
+ *
+ * These functions either unconditionally swap byte order (SDL_Swap16,
+ * SDL_Swap32, SDL_Swap64, SDL_SwapFloat), or they swap to/from the system's
+ * native byte order (SDL_Swap16LE, SDL_Swap16BE, SDL_Swap32LE, SDL_Swap32BE,
+ * SDL_Swap32LE, SDL_Swap32BE, SDL_SwapFloatLE, SDL_SwapFloatBE). In the
+ * latter case, the functionality is provided by macros that become no-ops if
+ * a swap isn't necessary: on an x86 (littleendian) processor, SDL_Swap32LE
+ * does nothing, but SDL_Swap32BE reverses the bytes of the data. On a PowerPC
+ * processor (bigendian), the macros behavior is reversed.
+ *
+ * The swap routines are inline functions, and attempt to use compiler
+ * intrinsics, inline assembly, and other magic to make byteswapping
+ * efficient.
  */
 
 #ifndef SDL_endian_h_
@@ -125,10 +138,6 @@ _m_prefetch(void *__P)
 extern "C" {
 #endif
 
-/**
- *  \file SDL_endian.h
- */
-
 /* various modern compilers may have builtin swap */
 #if defined(__GNUC__) || defined(__clang__)
 #   define HAS_BUILTIN_BSWAP16 (SDL_HAS_BUILTIN(__builtin_bswap16)) || \
@@ -148,6 +157,7 @@ extern "C" {
 #endif
 
 /* Byte swap 16-bit integer. */
+#ifndef SDL_WIKI_DOCUMENTATION_SECTION
 #if HAS_BUILTIN_BSWAP16
 #define SDL_Swap16(x) __builtin_bswap16(x)
 #elif (defined(_MSC_VER) && (_MSC_VER >= 1400)) && !defined(__ICL)
@@ -191,8 +201,10 @@ SDL_FORCE_INLINE Uint16 SDL_Swap16(Uint16 x)
     return SDL_static_cast(Uint16, ((x << 8) | (x >> 8)));
 }
 #endif
+#endif
 
 /* Byte swap 32-bit integer. */
+#ifndef SDL_WIKI_DOCUMENTATION_SECTION
 #if HAS_BUILTIN_BSWAP32
 #define SDL_Swap32(x) __builtin_bswap32(x)
 #elif (defined(_MSC_VER) && (_MSC_VER >= 1400)) && !defined(__ICL)
@@ -239,8 +251,10 @@ SDL_FORCE_INLINE Uint32 SDL_Swap32(Uint32 x)
                                     ((x >> 8) & 0x0000FF00) | (x >> 24)));
 }
 #endif
+#endif
 
 /* Byte swap 64-bit integer. */
+#ifndef SDL_WIKI_DOCUMENTATION_SECTION
 #if HAS_BUILTIN_BSWAP64
 #define SDL_Swap64(x) __builtin_bswap64(x)
 #elif (defined(_MSC_VER) && (_MSC_VER >= 1400)) && !defined(__ICL)
@@ -290,7 +304,7 @@ SDL_FORCE_INLINE Uint64 SDL_Swap64(Uint64 x)
     return (x);
 }
 #endif
-
+#endif
 
 /**
  * Byte-swap a floating point number.
