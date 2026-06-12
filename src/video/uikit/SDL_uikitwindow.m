@@ -163,17 +163,10 @@ bool UIKit_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Properti
         }
 
         if (data.uiscreen == [UIScreen mainScreen]) {
-            if (@available(iOS 13.0, *)) {
-                // iOS 13+ uses view controller's prefersStatusBarHidden
+            if (window->flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_BORDERLESS)) {
+                [UIApplication sharedApplication].statusBarHidden = YES;
             } else {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-                if (window->flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_BORDERLESS)) {
-                    [UIApplication sharedApplication].statusBarHidden = YES;
-                } else {
-                    [UIApplication sharedApplication].statusBarHidden = NO;
-                }
-#pragma clang diagnostic pop
+                [UIApplication sharedApplication].statusBarHidden = NO;
             }
         }
 #endif // !SDL_PLATFORM_TVOS
@@ -200,14 +193,7 @@ bool UIKit_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Properti
         // put the window on an external display if appropriate.
 #ifndef SDL_PLATFORM_VISIONOS
         if (data.uiscreen != [UIScreen mainScreen]) {
-            if (@available(iOS 13.0, tvOS 13.0, *)) {
-                // iOS 13+ uses UIWindowScene to manage screen association
-            } else {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-                [uiwindow setScreen:data.uiscreen];
-#pragma clang diagnostic pop
-            }
+            [uiwindow setScreen:data.uiscreen];
         }
 #endif
 
@@ -291,17 +277,10 @@ static void UIKit_UpdateWindowBorder(SDL_VideoDevice *_this, SDL_Window *window)
 
 #if !defined(SDL_PLATFORM_TVOS) && !defined(SDL_PLATFORM_VISIONOS)
     if (data.uiwindow.screen == [UIScreen mainScreen]) {
-        if (@available(iOS 13.0, *)) {
-            // iOS 13+ uses view controller's prefersStatusBarHidden
+        if (window->flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_BORDERLESS)) {
+            [UIApplication sharedApplication].statusBarHidden = YES;
         } else {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-            if (window->flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_BORDERLESS)) {
-                [UIApplication sharedApplication].statusBarHidden = YES;
-            } else {
-                [UIApplication sharedApplication].statusBarHidden = NO;
-            }
-#pragma clang diagnostic pop
+            [UIApplication sharedApplication].statusBarHidden = NO;
         }
 
         [viewcontroller setNeedsStatusBarAppearanceUpdate];

@@ -444,11 +444,14 @@ static Uint32 initial_blacklist_devices[] = {
     MAKE_VIDPID(0x0e6f, 0x018a), // PDP REALMz Wireless Controller for Switch, USB charging
     MAKE_VIDPID(0x1532, 0x0266), // Razer Huntsman V2 Analog, non-functional DInput device
     MAKE_VIDPID(0x1532, 0x0282), // Razer Huntsman Mini Analog, non-functional DInput device
-    MAKE_VIDPID(0x26ce, 0x01a2), // ASRock LED Controller
     MAKE_VIDPID(0x20d6, 0x0002), // PowerA Enhanced Wireless Controller for Nintendo Switch (charging port only)
-    MAKE_VIDPID(0x31e3, 0x1310), // Wooting 60HE (ARM)
+    MAKE_VIDPID(0x256c, 0x006d), // Huion Tablet_GS1331, Huion Tablet_GS1331 Touch Strip
+    MAKE_VIDPID(0x256c, 0x006e), // Huion Tablet Kamvas Pro 22, Huion Tablet Kamvas Pro 22 Touch Strip
+    MAKE_VIDPID(0x26ce, 0x01a2), // ASRock LED Controller
     MAKE_VIDPID(0x3297, 0x1969), // Moonlander MK1 Keyboard
+    MAKE_VIDPID(0x3434, 0x0121), // Keychron Q3 System Control
     MAKE_VIDPID(0x3434, 0x0211), // Keychron K1 Pro System Control
+    MAKE_VIDPID(0x3434, 0x02a0), // Keychron K10 Pro System Control
     MAKE_VIDPID(0x3434, 0x0353), // Keychron V5 System Control
     MAKE_VIDPID(0x3434, 0xd030), // Keychron Link
 };
@@ -476,6 +479,8 @@ static Uint32 initial_flightstick_devices[] = {
     MAKE_VIDPID(0x10f5, 0x7084), // Turtle Beach VelocityOne
     MAKE_VIDPID(0x231d, 0x0126), // Gunfighter Mk.III 'Space Combat Edition' (right)
     MAKE_VIDPID(0x231d, 0x0127), // Gunfighter Mk.III 'Space Combat Edition' (left)
+    MAKE_VIDPID(0x3344, 0x4391), // VIRPIL Controls R-VPC Stick MT-50CM3
+    MAKE_VIDPID(0x3344, 0x8390), // VIRPIL Controls L-VPC Stick MT-50CM3
     MAKE_VIDPID(0x362c, 0x0001), // Yawman Arrow
 };
 static SDL_vidpid_list flightstick_devices = {
@@ -523,6 +528,7 @@ static Uint32 initial_throttle_devices[] = {
     MAKE_VIDPID(0x044f, 0x0404), // HOTAS Warthog Throttle
     MAKE_VIDPID(0x0738, 0xa221), // Saitek Pro Flight X-56 Rhino Throttle
     MAKE_VIDPID(0x10f5, 0x7085), // Turtle Beach VelocityOne Throttle
+    MAKE_VIDPID(0x3344, 0x0196), // VIRPIL Controls VPC VMAX Prime Throttle
 };
 static SDL_vidpid_list throttle_devices = {
     SDL_HINT_JOYSTICK_THROTTLE_DEVICES, 0, 0, NULL,
@@ -652,15 +658,6 @@ void SDL_LockJoysticks(void)
     (void)SDL_AtomicDecRef(&SDL_joystick_lock_pending);
 
     ++SDL_joysticks_locked;
-}
-
-bool SDL_TryLockJoysticks(void)
-{
-    if (SDL_TryLockMutex(SDL_joystick_lock)) {
-        ++SDL_joysticks_locked;
-        return true;
-    }
-    return false;
 }
 
 void SDL_UnlockJoysticks(void)
@@ -2438,7 +2435,7 @@ bool SDL_IsJoystickBeingAdded(void)
 
 void SDL_PrivateJoystickForceRecentering(SDL_Joystick *joystick)
 {
-    Uint8 i, j;
+    int i, j;
     Uint64 timestamp = SDL_GetTicksNS();
 
     SDL_AssertJoysticksLocked();
@@ -3313,15 +3310,6 @@ bool SDL_IsJoystickFlydigiController(Uint16 vendor_id, Uint16 product_id)
         }
     }
     return false;
-}
-
-bool SDL_IsJoystickGameSirController(Uint16 vendor_id, Uint16 product_id)
-{
-    if (vendor_id != USB_VENDOR_GAMESIR) {
-        return false;
-    }
-
-    return (product_id == USB_PRODUCT_GAMESIR_GAMEPAD_G7_PRO_8K);
 }
 
 bool SDL_IsJoystickSteamDeck(Uint16 vendor_id, Uint16 product_id)

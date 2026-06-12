@@ -203,7 +203,7 @@ static bool WildcardMatch(const char *pattern, const char *str, bool *matched_to
         pch = *(++pattern);
     }
 
-    *matched_to_dir = ((pch == '/') || (pch == '\0'));  // end of string and the pattern is complete or failed at a '/'? We should descend into this directory.
+    *matched_to_dir = (pch == '/');  // end of string and the pattern failed at a '/'? We should descend into this directory.
 
     return (pch == '\0');  // survived the whole pattern? That's a match!
 }
@@ -510,6 +510,14 @@ const char *SDL_GetUserFolder(SDL_Folder folder)
     return CachedUserFolders[idx];
 }
 
+static char *CachedExeName = NULL;
+const char *SDL_GetExeName(void)
+{
+    if (!CachedExeName) {
+        CachedExeName = SDL_SYS_GetExeName();
+    }
+    return CachedExeName;
+}
 
 char *SDL_GetPrefPath(const char *org, const char *app)
 {
@@ -537,10 +545,12 @@ void SDL_InitFilesystem(void)
 
 void SDL_QuitFilesystem(void)
 {
-    if (CachedBasePath) {
-        SDL_free(CachedBasePath);
-        CachedBasePath = NULL;
-    }
+    SDL_free(CachedBasePath);
+    CachedBasePath = NULL;
+
+    SDL_free(CachedExeName);
+    CachedExeName = NULL;
+
     for (int i = 0; i < SDL_arraysize(CachedUserFolders); i++) {
         if (CachedUserFolders[i]) {
             SDL_free(CachedUserFolders[i]);

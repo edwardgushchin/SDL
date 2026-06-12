@@ -74,6 +74,12 @@
 #include <3ds.h>
 #endif
 
+#ifdef SDL_PLATFORM_LINUX
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 #ifndef GL_RGBA_FLOAT_MODE_ARB
 #define GL_RGBA_FLOAT_MODE_ARB 0x8820
 #endif /* GL_RGBA_FLOAT_MODE_ARB */
@@ -221,11 +227,6 @@ static bool SDL_DriverSendsHDRChanges(SDL_VideoDevice *_this)
     return !!(_this->device_caps & VIDEO_DEVICE_CAPS_SENDS_HDR_CHANGES);
 }
 
-static bool SDL_DriverHasSlowFramebuffer(SDL_VideoDevice *_this)
-{
-    return !!(_this->device_caps & VIDEO_DEVICE_CAPS_SLOW_FRAMEBUFFER);
-}
-
 // Hint to treat all window ops as synchronous
 static bool syncHint;
 
@@ -283,7 +284,7 @@ typedef struct
 
 static Uint32 SDL_DefaultGraphicsBackends(SDL_VideoDevice *_this)
 {
-#if (defined(SDL_VIDEO_OPENGL) && defined(SDL_PLATFORM_MACOS)) || (defined(SDL_PLATFORM_IOS) && !TARGET_OS_MACCATALYST) || defined(SDL_PLATFORM_QNXNTO)
+#if (defined(SDL_VIDEO_OPENGL) && defined(SDL_PLATFORM_MACOS)) || (defined(SDL_PLATFORM_IOS) && !TARGET_OS_MACCATALYST)
     if (_this->GL_CreateContext) {
         return SDL_WINDOW_OPENGL;
     }
@@ -421,7 +422,7 @@ static bool SDL_CreateWindowTexture(SDL_VideoDevice *_this, SDL_Window *window, 
             !SDL_ISPIXELFORMAT_10BIT(texture_format) &&
             !SDL_ISPIXELFORMAT_FLOAT(texture_format) &&
             !SDL_ISPIXELFORMAT_INDEXED(texture_format) &&
-            transparent == SDL_ISPIXELFORMAT_ALPHA(texture_format)) {
+            (!transparent || SDL_ISPIXELFORMAT_ALPHA(texture_format))) {
             *format = texture_format;
             break;
         }
@@ -725,7 +726,7 @@ bool SDL_VideoInit(const char *driver_name)
        but most things using SDL are games or media players; you wouldn't
        want a screensaver to trigger if you're playing exclusively with a
        joystick, or passively watching a movie. Things that use SDL but
-       function more like a normal desktop app should explicitly re-enable the
+       function more like a normal desktop app should explicitly reenable the
        screensaver. */
     if (!SDL_GetHintBoolean(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, false)) {
         SDL_DisableScreenSaver();
@@ -1419,11 +1420,16 @@ bool SDL_GetClosestFullscreenDisplayMode(SDL_DisplayID displayID, int w, int h, 
                 continue;
             }
 
-            if (mode->w == closest->w && mode->h == closest->h &&
-                SDL_fabsf(closest->refresh_rate - refresh_rate) < SDL_fabsf(mode->refresh_rate - refresh_rate)) {
-                /* We already found a mode and the new mode is further from our
-                 * refresh rate target */
-                continue;
+            if (mode->w == closest->w && mode->h == closest->h) {
+                if (SDL_fabsf(closest->refresh_rate - refresh_rate) < SDL_fabsf(mode->refresh_rate - refresh_rate)) {
+                    /* We already found a mode and the new mode is further from our
+                     * refresh rate target */
+                    continue;
+                }
+                if (SDL_BYTESPERPIXEL(closest->format) > SDL_BYTESPERPIXEL(mode->format)) {
+                    // Prefer the highest color depth
+                    continue;
+                }
             }
         }
 
@@ -1523,9 +1529,13 @@ bool SDL_SetDisplayModeForDisplay(SDL_VideoDisplay *display, SDL_DisplayMode *mo
         mode = &display->desktop_mode;
     }
 
+    // On RISC OS, it's necessary to switch from the desktop to single-tasking
+    // fullscreen so that it can handle switching back to the desktop correctly.
+#ifndef SDL_PLATFORM_RISCOS
     if (mode == display->current_mode) {
         return true;
     }
+#endif
 
     // Actually change the display mode
     if (_this->SetDisplayMode) {
@@ -3037,6 +3047,14 @@ bool SDL_SetWindowPosition(SDL_Window *window, int x, int y)
 
     window->pending.x = x;
     window->pending.y = y;
+
+    /* Windows are placed at the coordinates received while in fullscreen after leaving fullscreen.
+     * Asynchronous backends need special handling in this case.
+     */
+    if (!_this->SyncWindow && (window->flags & SDL_WINDOW_FULLSCREEN)) {
+        window->floating.x = window->windowed.x = x;
+        window->floating.y = window->windowed.y = y;
+    }
     window->undefined_x = false;
     window->undefined_y = false;
     window->last_position_pending = true;
@@ -3225,10 +3243,15 @@ bool SDL_SetWindowAspectRatio(SDL_Window *window, float min_aspect, float max_as
 
     window->min_aspect = min_aspect;
     window->max_aspect = max_aspect;
+
     if (_this->SetWindowAspectRatio) {
         _this->SetWindowAspectRatio(_this, window);
     }
-    return SDL_SetWindowSize(window, window->floating.w, window->floating.h);
+
+    // Ensure that window has the correct aspect ratio
+    int w = window->last_size_pending ? window->pending.w : window->floating.w;
+    int h = window->last_size_pending ? window->pending.h : window->floating.h;
+    return SDL_SetWindowSize(window, w, h);
 }
 
 bool SDL_GetWindowAspectRatio(SDL_Window *window, float *min_aspect, float *max_aspect)
@@ -3332,8 +3355,6 @@ bool SDL_SetWindowMinimumSize(SDL_Window *window, int min_w, int min_h)
     // Ensure that window is not smaller than minimal size
     int w = window->last_size_pending ? window->pending.w : window->floating.w;
     int h = window->last_size_pending ? window->pending.h : window->floating.h;
-    w = window->min_w ? SDL_max(w, window->min_w) : w;
-    h = window->min_h ? SDL_max(h, window->min_h) : h;
     return SDL_SetWindowSize(window, w, h);
 }
 
@@ -3374,8 +3395,6 @@ bool SDL_SetWindowMaximumSize(SDL_Window *window, int max_w, int max_h)
     // Ensure that window is not larger than maximal size
     int w = window->last_size_pending ? window->pending.w : window->floating.w;
     int h = window->last_size_pending ? window->pending.h : window->floating.h;
-    w = window->max_w ? SDL_min(w, window->max_w) : w;
-    h = window->max_h ? SDL_min(h, window->max_h) : h;
     return SDL_SetWindowSize(window, w, h);
 }
 
@@ -3571,7 +3590,7 @@ bool SDL_SetWindowFullscreen(SDL_Window *window, bool fullscreen)
 
 bool SDL_SyncWindow(SDL_Window *window)
 {
-    CHECK_WINDOW_MAGIC(window, false);
+    CHECK_WINDOW_MAGIC(window, false)
 
     if (_this->SyncWindow) {
         return _this->SyncWindow(_this, window);
@@ -3583,11 +3602,11 @@ bool SDL_SyncWindow(SDL_Window *window)
 static bool ShouldAttemptTextureFramebuffer(void)
 {
     const char *hint;
-    bool attempt_texture_framebuffer;
+    bool attempt_texture_framebuffer = true;
 
-    // If the driver doesn't support window framebuffers, always use the render API.
-    if (!_this->CreateWindowFramebuffer) {
-        return true;
+    // The dummy driver never has GPU support, of course.
+    if (_this->is_dummy) {
+        return false;
     }
 
     // See if there's a hint override
@@ -3599,11 +3618,24 @@ static bool ShouldAttemptTextureFramebuffer(void)
             attempt_texture_framebuffer = true;
         }
     } else {
-        if (SDL_DriverHasSlowFramebuffer(_this)) {
-            attempt_texture_framebuffer = true;
-        } else {
+        // Check for platform specific defaults
+#ifdef SDL_PLATFORM_LINUX
+        // On WSL, direct X11 is faster than using OpenGL for window framebuffers, so try to detect WSL and avoid texture framebuffer.
+        if ((_this->CreateWindowFramebuffer) && (SDL_strcmp(_this->name, "x11") == 0)) {
+            struct stat sb;
+            if ((stat("/proc/sys/fs/binfmt_misc/WSLInterop", &sb) == 0) || (stat("/run/WSL", &sb) == 0)) { // if either of these exist, we're on WSL.
+                attempt_texture_framebuffer = false;
+            }
+        }
+#endif
+#if defined(SDL_PLATFORM_WIN32) || defined(SDL_PLATFORM_WINGDK) // GDI BitBlt() is way faster than Direct3D dynamic textures right now. (!!! FIXME: is this still true?)
+        if (_this->CreateWindowFramebuffer && (SDL_strcmp(_this->name, "windows") == 0)) {
             attempt_texture_framebuffer = false;
         }
+#endif
+#ifdef SDL_PLATFORM_EMSCRIPTEN
+        attempt_texture_framebuffer = false;
+#endif
     }
     return attempt_texture_framebuffer;
 }
@@ -4970,6 +5002,12 @@ void SDL_GL_ResetAttributes(void)
     _this->gl_config.profile_mask = SDL_GL_CONTEXT_PROFILE_ES;
 #endif
 
+    if (_this->GL_DefaultProfileConfig) {
+        _this->GL_DefaultProfileConfig(_this, &_this->gl_config.profile_mask,
+                                       &_this->gl_config.major_version,
+                                       &_this->gl_config.minor_version);
+    }
+
     _this->gl_config.flags = 0;
     _this->gl_config.framebuffer_srgb_capable = 0;
     _this->gl_config.no_error = 0;
@@ -4979,10 +5017,6 @@ void SDL_GL_ResetAttributes(void)
     _this->gl_config.share_with_current_context = 0;
 
     _this->gl_config.egl_platform = 0;
-
-    if (_this->GL_SetDefaultProfileConfig) {
-        _this->GL_SetDefaultProfileConfig(_this);
-    }
 }
 
 bool SDL_GL_SetAttribute(SDL_GLAttr attr, int value)
@@ -5414,7 +5448,6 @@ SDL_GLContext SDL_GL_CreateContext(SDL_Window *window)
     }
 
 #if defined(SDL_VIDEO_OPENGL) || defined(SDL_VIDEO_OPENGL_ES) || defined(SDL_VIDEO_OPENGL_ES2)
-    // try to force the window framebuffer to the requested sRGB state.
     if (srgb_requested != -1) {
         PFNGLENABLEPROC glToggleFunc = (PFNGLENABLEPROC) SDL_GL_GetProcAddress(srgb_requested ? "glEnable" : "glDisable");
         PFNGLGETSTRINGPROC glGetStringFunc = (PFNGLGETSTRINGPROC)SDL_GL_GetProcAddress("glGetString");
@@ -5898,7 +5931,7 @@ bool SDL_ScreenKeyboardShown(SDL_Window *window)
 
 void SDL_SendScreenKeyboardShown(void)
 {
-    if (_this->screen_keyboard_shown) {
+    if (!_this || _this->screen_keyboard_shown) {
         return;
     }
 
@@ -5914,7 +5947,7 @@ void SDL_SendScreenKeyboardShown(void)
 
 void SDL_SendScreenKeyboardHidden(void)
 {
-    if (!_this->screen_keyboard_shown) {
+    if (!_this || !_this->screen_keyboard_shown) {
         return;
     }
 
@@ -6106,8 +6139,8 @@ bool SDL_ShouldAllowTopmost(void)
 
 bool SDL_ShowWindowSystemMenu(SDL_Window *window, int x, int y)
 {
-    CHECK_WINDOW_MAGIC(window, false);
-    CHECK_WINDOW_NOT_POPUP(window, false);
+    CHECK_WINDOW_MAGIC(window, false)
+    CHECK_WINDOW_NOT_POPUP(window, false)
 
     if (_this->ShowWindowSystemMenu) {
         _this->ShowWindowSystemMenu(window, x, y);
@@ -6147,9 +6180,13 @@ bool SDL_SetWindowShape(SDL_Window *window, SDL_Surface *shape)
         return false;
     }
 
-    surface = SDL_ConvertSurface(shape, SDL_PIXELFORMAT_ARGB32);
-    if (!surface) {
-        return false;
+    if (shape) {
+        surface = SDL_ConvertSurface(shape, SDL_PIXELFORMAT_ARGB32);
+        if (!surface) {
+            return false;
+        }
+    } else {
+        surface = NULL;
     }
 
     if (!SDL_SetSurfaceProperty(props, SDL_PROP_WINDOW_SHAPE_POINTER, surface)) {

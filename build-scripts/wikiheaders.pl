@@ -1362,7 +1362,7 @@ while (my $d = readdir(DH)) {
                 if (($p eq 'void') || ($p eq '')) {
                     die("Void parameter in a function with multiple params?! ('$sym' in '$incpath/$dent')") if (scalar(@params) != 1);
                 } elsif ($p eq '...') {
-                    die("Multiple '...' params?! ('$sym' in '$incpath/$dent')") if ($dotdotdot);
+                    die("Mutiple '...' params?! ('$sym' in '$incpath/$dent')") if ($dotdotdot);
                     $dotdotdot = 1;
                     push @paraminfo, '...';
                     push @paraminfo, '...';
@@ -1673,7 +1673,7 @@ while (my $d = readdir(DH)) {
                 if ($has_doxygen) {
                     print STDERR "WARNING: Symbol '$sym' appears to be documented in multiple locations. Only keeping the first one we saw!\n";
                 }
-                push @contents, join("\n", @decllines) if (scalar(@decllines) > 0);  # just put the existing declaration in as-is.
+                push @contents, join("\n", @decllines) if (scalar(@decllines) > 0);  # just put the existing declation in as-is.
             }
         }
 
@@ -2911,6 +2911,11 @@ __EOF__
         my @briefsplit = split /\n/, $brief;
         $brief = shift @briefsplit;
         $brief = dewikify($wikitype, $brief);
+
+        # Hack: `apropros` doesn't like escaped character things like `\[char46]` for `.`...since almost every
+        # manpage will end their Brief section with a period and it won't wordwrap to risk being a groff control
+        # character, just replace it.
+        $brief =~ s/\\\[char46\]/./g;
 
         if (defined $remarks) {
             $remarks = dewikify($wikitype, join("\n", @briefsplit) . $remarks);

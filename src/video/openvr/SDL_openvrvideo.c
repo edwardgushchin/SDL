@@ -1029,7 +1029,7 @@ static bool SDL_EGL_InitInternal(SDL_VideoData * vd)
 // Linux, EGL, etc.
 static bool OVR_EGL_LoadLibrary(SDL_VideoDevice *_this, const char *path)
 {
-    return SDL_EGL_LoadLibrary(_this, path, EGL_DEFAULT_DISPLAY);
+    return SDL_EGL_LoadLibrary(_this, path, /*displaydata->native_display*/0, 0);
 }
 
 static SDL_FunctionPointer OVR_EGL_GetProcAddress(SDL_VideoDevice *_this, const char *proc)
@@ -1473,7 +1473,7 @@ static void OPENVR_PumpEvents(SDL_VideoDevice *_this)
                 break;
             case EVREventType_VREvent_OverlayClosed:
             case EVREventType_VREvent_Quit:
-                SDL_Quit();
+                SDL_SendQuit();
                 break;
             }
         }

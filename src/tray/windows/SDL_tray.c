@@ -62,11 +62,6 @@ struct SDL_Tray {
     HWND hwnd;
     HICON icon;
     SDL_TrayMenu *menu;
-
-    void *userdata;
-    SDL_TrayClickCallback left_click_callback;
-    SDL_TrayClickCallback right_click_callback;
-    SDL_TrayClickCallback middle_click_callback;
 };
 
 static UINT_PTR get_next_id(void)
@@ -124,35 +119,10 @@ LRESULT CALLBACK TrayWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 
     switch (uMsg) {
         case WM_TRAYICON:
-            {
-                bool show_menu = false;
+            if (LOWORD(lParam) == WM_CONTEXTMENU || LOWORD(lParam) == WM_LBUTTONUP) {
+                SetForegroundWindow(hwnd);
 
-                switch (LOWORD(lParam)) {
-                    case WM_LBUTTONUP:
-                        if (tray->left_click_callback) {
-                            show_menu = tray->left_click_callback(tray->userdata, tray);
-                        } else {
-                            show_menu = true;
-                        }
-                        break;
-
-                    case WM_CONTEXTMENU:
-                        if (tray->right_click_callback) {
-                            show_menu = tray->right_click_callback(tray->userdata, tray);
-                        } else {
-                            show_menu = true;
-                        }
-                        break;
-
-                    case WM_MBUTTONUP:
-                        if (tray->middle_click_callback) {
-                            tray->middle_click_callback(tray->userdata, tray);
-                        }
-                        break;
-                }
-
-                if (show_menu && tray->menu) {
-                    SetForegroundWindow(hwnd);
+                if (tray->menu) {
                     TrackPopupMenu(tray->menu->hMenu, TPM_BOTTOMALIGN | TPM_RIGHTALIGN, GET_X_LPARAM(wParam), GET_Y_LPARAM(wParam), 0, hwnd, NULL);
                 }
             }
@@ -297,7 +267,7 @@ static bool SDL_RegisterTrayClass(LPCWSTR className)
     return true;
 }
 
-SDL_Tray *SDL_CreateTrayWithProperties(SDL_PropertiesID props)
+SDL_Tray *SDL_CreateTray(SDL_Surface *icon, const char *tooltip)
 {
     if (!SDL_IsMainThread()) {
         SDL_SetError("This function should be called on the main thread");
@@ -310,18 +280,9 @@ SDL_Tray *SDL_CreateTrayWithProperties(SDL_PropertiesID props)
         return NULL;
     }
 
-    SDL_Surface *icon = (SDL_Surface *)SDL_GetPointerProperty(props, SDL_PROP_TRAY_CREATE_ICON_POINTER, NULL);
-    const char *tooltip = SDL_GetStringProperty(props, SDL_PROP_TRAY_CREATE_TOOLTIP_STRING, NULL);
-
-    tray->userdata = SDL_GetPointerProperty(props, SDL_PROP_TRAY_CREATE_USERDATA_POINTER, NULL);
-    tray->left_click_callback = (SDL_TrayClickCallback)SDL_GetPointerProperty(props, SDL_PROP_TRAY_CREATE_LEFTCLICK_CALLBACK_POINTER, NULL);
-    tray->right_click_callback = (SDL_TrayClickCallback)SDL_GetPointerProperty(props, SDL_PROP_TRAY_CREATE_RIGHTCLICK_CALLBACK_POINTER, NULL);
-    tray->middle_click_callback = (SDL_TrayClickCallback)SDL_GetPointerProperty(props, SDL_PROP_TRAY_CREATE_MIDDLECLICK_CALLBACK_POINTER, NULL);
-
     tray->menu = NULL;
     if (!SDL_RegisterTrayClass(TEXT("SDL_TRAY"))) {
         SDL_SetError("Failed to register SDL_TRAY window class");
-        SDL_free(tray);
         return NULL;
     }
     tray->hwnd = CreateWindowEx(0, TEXT("SDL_TRAY"), NULL, WS_OVERLAPPEDWINDOW,
@@ -336,13 +297,9 @@ SDL_Tray *SDL_CreateTrayWithProperties(SDL_PropertiesID props)
     tray->nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_SHOWTIP;
     tray->nid.uCallbackMessage = WM_TRAYICON;
     tray->nid.uVersion = NOTIFYICON_VERSION_4;
-    if (tooltip) {
-        wchar_t *tooltipw = WIN_UTF8ToStringW(tooltip);
-        if(tooltipw) {
-            SDL_wcslcpy(tray->nid.szTip, tooltipw, sizeof(tray->nid.szTip) / sizeof(*tray->nid.szTip));
-            SDL_free(tooltipw);
-        }
-    }
+    wchar_t *tooltipw = WIN_UTF8ToStringW(tooltip);
+    SDL_wcslcpy(tray->nid.szTip, tooltipw, sizeof(tray->nid.szTip) / sizeof(*tray->nid.szTip));
+    SDL_free(tooltipw);
 
     if (icon) {
         tray->nid.hIcon = WIN_CreateIconFromSurface(icon);
@@ -364,24 +321,6 @@ SDL_Tray *SDL_CreateTrayWithProperties(SDL_PropertiesID props)
 
     SDL_RegisterTray(tray);
 
-    return tray;
-}
-
-SDL_Tray *SDL_CreateTray(SDL_Surface *icon, const char *tooltip)
-{
-    SDL_Tray *tray;
-    SDL_PropertiesID props = SDL_CreateProperties();
-    if (!props) {
-        return NULL;
-    }
-    if (icon) {
-        SDL_SetPointerProperty(props, SDL_PROP_TRAY_CREATE_ICON_POINTER, icon);
-    }
-    if (tooltip) {
-        SDL_SetStringProperty(props, SDL_PROP_TRAY_CREATE_TOOLTIP_STRING, tooltip);
-    }
-    tray = SDL_CreateTrayWithProperties(props);
-    SDL_DestroyProperties(props);
     return tray;
 }
 

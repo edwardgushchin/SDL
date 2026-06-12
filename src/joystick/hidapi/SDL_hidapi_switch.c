@@ -1458,11 +1458,11 @@ static void UpdateDeviceIdentity(SDL_HIDAPI_Device *device)
             device->type = SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO;
             break;
         case k_eSwitchDeviceInfoControllerType_HVCLeft:
-            HIDAPI_SetDeviceName(device, "Nintendo HVC Controller (1)");
+            HIDAPI_SetDeviceName(device, "Nintendo Family Computer Controller (1)");
             device->type = SDL_GAMEPAD_TYPE_STANDARD;
             break;
         case k_eSwitchDeviceInfoControllerType_HVCRight:
-            HIDAPI_SetDeviceName(device, "Nintendo HVC Controller (2)");
+            HIDAPI_SetDeviceName(device, "Nintendo Family Computer Controller (2)");
             device->type = SDL_GAMEPAD_TYPE_STANDARD;
             break;
         case k_eSwitchDeviceInfoControllerType_NESLeft:
@@ -2726,7 +2726,17 @@ static void HandleFullControllerState(SDL_Joystick *joystick, SDL_DriverSwitch_C
             Uint64 now = SDL_GetTicks();
 
             if (now >= (ctx->m_ulLastIMUReset + IMU_RESET_DELAY_MS)) {
+                SDL_HIDAPI_Device *device = ctx->device;
+
+                if (device->updating) {
+                    SDL_UnlockMutex(device->dev_lock);
+                }
+
                 SetIMUEnabled(ctx, true);
+
+                if (device->updating) {
+                    SDL_LockMutex(device->dev_lock);
+                }
                 ctx->m_ulLastIMUReset = now;
             }
 

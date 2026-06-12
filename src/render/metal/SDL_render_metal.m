@@ -1393,6 +1393,7 @@ typedef struct
     size_t constants_offset;
     SDL_Texture *texture;
     bool texture_palette;
+    SDL_PixelFormat texture_format;
     SDL_ScaleMode texture_scale_mode;
     SDL_TextureAddressMode texture_address_mode_u;
     SDL_TextureAddressMode texture_address_mode_v;
@@ -1537,14 +1538,14 @@ static bool SetDrawState(SDL_Renderer *renderer, const SDL_RenderCommand *cmd, c
             METAL_GetOutputSize(renderer, &output.w, &output.h);
         }
 
-        if (SDL_GetRectIntersection(&output, &clip, &clip)) {
-            MTLScissorRect mtlrect;
-            mtlrect.x = clip.x;
-            mtlrect.y = clip.y;
-            mtlrect.width = clip.w;
-            mtlrect.height = clip.h;
-            [data.mtlcmdencoder setScissorRect:mtlrect];
-        }
+        SDL_GetRectIntersection(&output, &clip, &clip);
+
+        MTLScissorRect mtlrect;
+        mtlrect.x = clip.x;
+        mtlrect.y = clip.y;
+        mtlrect.width = clip.w;
+        mtlrect.height = clip.h;
+        [data.mtlcmdencoder setScissorRect:mtlrect];
 
         statecache->cliprect_dirty = false;
     }
@@ -1669,7 +1670,8 @@ static bool SetCopyState(SDL_Renderer *renderer, const SDL_RenderCommand *cmd, c
         statecache->texture = texture;
     }
 
-    if (cmd->data.draw.texture_scale_mode != statecache->texture_scale_mode ||
+    if (texture->format != statecache->texture_format ||
+        cmd->data.draw.texture_scale_mode != statecache->texture_scale_mode ||
         cmd->data.draw.texture_address_mode_u != statecache->texture_address_mode_u ||
         cmd->data.draw.texture_address_mode_v != statecache->texture_address_mode_v) {
         id<MTLSamplerState> mtlsampler = GetSampler(data, texture->format, cmd->data.draw.texture_scale_mode, cmd->data.draw.texture_address_mode_u, cmd->data.draw.texture_address_mode_v);
@@ -1678,6 +1680,7 @@ static bool SetCopyState(SDL_Renderer *renderer, const SDL_RenderCommand *cmd, c
         }
         [data.mtlcmdencoder setFragmentSamplerState:mtlsampler atIndex:0];
 
+        statecache->texture_format = texture->format;
         statecache->texture_scale_mode = cmd->data.draw.texture_scale_mode;
         statecache->texture_address_mode_u = cmd->data.draw.texture_address_mode_u;
         statecache->texture_address_mode_v = cmd->data.draw.texture_address_mode_v;
@@ -1971,6 +1974,9 @@ static SDL_Surface *METAL_RenderReadPixels(SDL_Renderer *renderer, const SDL_Rec
             break;
         case MTLPixelFormatRGBA16Float:
             format = SDL_PIXELFORMAT_RGBA64_FLOAT;
+            break;
+        case MTLPixelFormatRGBA32Float:
+            format = SDL_PIXELFORMAT_RGBA128_FLOAT;
             break;
         case MTLPixelFormatB5G6R5Unorm:
             format = SDL_PIXELFORMAT_RGB565;

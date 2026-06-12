@@ -13,7 +13,8 @@ def generate(category, example_name, c_source_file):
   <PropertyGroup Label="Globals">
     <ProjectGuid>{{{guid}}}</ProjectGuid>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)\\examples\\Examples.props" />
+  <Import Project="$(VCTargetsPath)\\Microsoft.Cpp.Default.props" />
+  <Import Project="$(VCTargetsPath)\\Microsoft.Cpp.props" />
   <ItemGroup>
     <None Include="$(SolutionDir)\\..\\examples\\{category}\\{example_name}\\README.txt" />
     <ClCompile Include="$(SolutionDir)\\..\\examples\\{category}\\{example_name}\\{c_source_file}" />

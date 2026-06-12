@@ -296,35 +296,49 @@ static UINT D3D12_Align(UINT location, UINT alignment)
     return (location + (alignment - 1)) & ~(alignment - 1);
 }
 
-static const struct {
-    SDL_PixelFormat sdl;
-    DXGI_FORMAT unorm;
-    DXGI_FORMAT srgb;
-} dxgi_format_map[] = {
-    { SDL_PIXELFORMAT_ARGB8888,     DXGI_FORMAT_B8G8R8A8_UNORM,     DXGI_FORMAT_B8G8R8A8_UNORM_SRGB },
-    { SDL_PIXELFORMAT_ABGR8888,     DXGI_FORMAT_R8G8B8A8_UNORM,     DXGI_FORMAT_R8G8B8A8_UNORM_SRGB },
-    { SDL_PIXELFORMAT_XRGB8888,     DXGI_FORMAT_B8G8R8X8_UNORM,     DXGI_FORMAT_B8G8R8X8_UNORM_SRGB },
-    { SDL_PIXELFORMAT_ABGR2101010,  DXGI_FORMAT_R10G10B10A2_UNORM,  DXGI_FORMAT_R10G10B10A2_UNORM   },
-    { SDL_PIXELFORMAT_RGBA64_FLOAT, DXGI_FORMAT_R16G16B16A16_FLOAT, DXGI_FORMAT_R16G16B16A16_FLOAT  },
-    { SDL_PIXELFORMAT_RGB565,       DXGI_FORMAT_B5G6R5_UNORM,       DXGI_FORMAT_B5G6R5_UNORM        },
-    { SDL_PIXELFORMAT_ARGB1555,     DXGI_FORMAT_B5G5R5A1_UNORM,     DXGI_FORMAT_B5G5R5A1_UNORM      },
-    { SDL_PIXELFORMAT_ARGB4444,     DXGI_FORMAT_B4G4R4A4_UNORM,     DXGI_FORMAT_B4G4R4A4_UNORM      }
-};
-
 static SDL_PixelFormat D3D12_DXGIFormatToSDLPixelFormat(DXGI_FORMAT dxgiFormat)
 {
-    for (int i = 0; i < SDL_arraysize(dxgi_format_map); i++) {
-        if (dxgi_format_map[i].unorm == dxgiFormat ||
-            dxgi_format_map[i].srgb == dxgiFormat) {
-            return dxgi_format_map[i].sdl;
-        }
+    switch (dxgiFormat) {
+    case DXGI_FORMAT_B8G8R8A8_UNORM:
+    case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+        return SDL_PIXELFORMAT_ARGB8888;
+    case DXGI_FORMAT_R8G8B8A8_UNORM:
+    case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+        return SDL_PIXELFORMAT_ABGR8888;
+    case DXGI_FORMAT_B8G8R8X8_UNORM:
+    case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB:
+        return SDL_PIXELFORMAT_XRGB8888;
+    case DXGI_FORMAT_R10G10B10A2_UNORM:
+        return SDL_PIXELFORMAT_ABGR2101010;
+    case DXGI_FORMAT_R16G16B16A16_FLOAT:
+        return SDL_PIXELFORMAT_RGBA64_FLOAT;
+    default:
+        return SDL_PIXELFORMAT_UNKNOWN;
     }
-    return SDL_PIXELFORMAT_UNKNOWN;
 }
 
-static DXGI_FORMAT SDLPixelFormatToDXGITextureFormat(SDL_PixelFormat format, Uint32 output_colorspace)
+static DXGI_FORMAT SDLPixelFormatToDXGITextureFormat(Uint32 format, Uint32 output_colorspace)
 {
     switch (format) {
+    case SDL_PIXELFORMAT_RGBA64_FLOAT:
+        return DXGI_FORMAT_R16G16B16A16_FLOAT;
+    case SDL_PIXELFORMAT_ABGR2101010:
+        return DXGI_FORMAT_R10G10B10A2_UNORM;
+    case SDL_PIXELFORMAT_ARGB8888:
+        if (output_colorspace == SDL_COLORSPACE_SRGB_LINEAR) {
+            return DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+        }
+        return DXGI_FORMAT_B8G8R8A8_UNORM;
+    case SDL_PIXELFORMAT_ABGR8888:
+        if (output_colorspace == SDL_COLORSPACE_SRGB_LINEAR) {
+            return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        }
+        return DXGI_FORMAT_R8G8B8A8_UNORM;
+    case SDL_PIXELFORMAT_XRGB8888:
+        if (output_colorspace == SDL_COLORSPACE_SRGB_LINEAR) {
+            return DXGI_FORMAT_B8G8R8X8_UNORM_SRGB;
+        }
+        return DXGI_FORMAT_B8G8R8X8_UNORM;
     case SDL_PIXELFORMAT_INDEX8:
     case SDL_PIXELFORMAT_YV12:
     case SDL_PIXELFORMAT_IYUV:
@@ -335,22 +349,32 @@ static DXGI_FORMAT SDLPixelFormatToDXGITextureFormat(SDL_PixelFormat format, Uin
     case SDL_PIXELFORMAT_P010:
         return DXGI_FORMAT_P010;
     default:
-        for (int i = 0; i < SDL_arraysize(dxgi_format_map); i++) {
-            if (dxgi_format_map[i].sdl == format) {
-                if (output_colorspace == SDL_COLORSPACE_SRGB_LINEAR) {
-                    return dxgi_format_map[i].srgb;
-                } else {
-                    return dxgi_format_map[i].unorm;
-                }
-            }
-        }
         return DXGI_FORMAT_UNKNOWN;
     }
 }
 
-static DXGI_FORMAT SDLPixelFormatToDXGIMainResourceViewFormat(SDL_PixelFormat format, Uint32 colorspace)
+static DXGI_FORMAT SDLPixelFormatToDXGIMainResourceViewFormat(Uint32 format, Uint32 colorspace)
 {
     switch (format) {
+    case SDL_PIXELFORMAT_RGBA64_FLOAT:
+        return DXGI_FORMAT_R16G16B16A16_FLOAT;
+    case SDL_PIXELFORMAT_ABGR2101010:
+        return DXGI_FORMAT_R10G10B10A2_UNORM;
+    case SDL_PIXELFORMAT_ARGB8888:
+        if (colorspace == SDL_COLORSPACE_SRGB_LINEAR) {
+            return DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+        }
+        return DXGI_FORMAT_B8G8R8A8_UNORM;
+    case SDL_PIXELFORMAT_ABGR8888:
+        if (colorspace == SDL_COLORSPACE_SRGB_LINEAR) {
+            return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        }
+        return DXGI_FORMAT_R8G8B8A8_UNORM;
+    case SDL_PIXELFORMAT_XRGB8888:
+        if (colorspace == SDL_COLORSPACE_SRGB_LINEAR) {
+            return DXGI_FORMAT_B8G8R8X8_UNORM_SRGB;
+        }
+        return DXGI_FORMAT_B8G8R8X8_UNORM;
     case SDL_PIXELFORMAT_INDEX8:
     case SDL_PIXELFORMAT_YV12:
     case SDL_PIXELFORMAT_IYUV:
@@ -360,7 +384,7 @@ static DXGI_FORMAT SDLPixelFormatToDXGIMainResourceViewFormat(SDL_PixelFormat fo
     case SDL_PIXELFORMAT_P010:  // For the Y texture
         return DXGI_FORMAT_R16_UNORM;
     default:
-        return SDLPixelFormatToDXGITextureFormat(format, colorspace);
+        return DXGI_FORMAT_UNKNOWN;
     }
 }
 
@@ -563,25 +587,25 @@ static HRESULT D3D12_IssueBatch(D3D12_RenderData *data)
 }
 
 #if defined(SDL_PLATFORM_XBOXONE) || defined(SDL_PLATFORM_XBOXSERIES)
-
-static void D3D12_GDKSuspendRenderer(SDL_Renderer *renderer)
+static bool SDLCALL D3D12_GDKEventFilter(void* userdata, SDL_Event* event)
 {
-    D3D12_RenderData *data = (D3D12_RenderData *)renderer->internal;
-    data->commandQueue->SuspendX(0);
+    D3D12_RenderData *data = (D3D12_RenderData *)userdata;
+    if (event->type == SDL_EVENT_DID_ENTER_BACKGROUND) {
+        data->commandQueue->SuspendX(0);
+    } else if (event->type == SDL_EVENT_WILL_ENTER_FOREGROUND) {
+        data->commandQueue->ResumeX();
+    }
+    return true;
 }
-
-static void D3D12_GDKResumeRenderer(SDL_Renderer *renderer)
-{
-    D3D12_RenderData *data = (D3D12_RenderData *)renderer->internal;
-    data->commandQueue->ResumeX();
-}
-
 #endif
 
 static void D3D12_DestroyRenderer(SDL_Renderer *renderer)
 {
     D3D12_RenderData *data = (D3D12_RenderData *)renderer->internal;
     if (data) {
+#if defined(SDL_PLATFORM_XBOXONE) || defined(SDL_PLATFORM_XBOXSERIES)
+        SDL_RemoveEventWatch(D3D12_GDKEventFilter, data);
+#endif
         D3D12_WaitForGPU(data);
         D3D12_ReleaseAll(renderer);
         SDL_free(data);
@@ -905,7 +929,7 @@ static HRESULT D3D12_CreateDeviceResources(SDL_Renderer *renderer)
                       D3D_GUID(SDL_IID_IDXGIAdapter4),
                       (void **)&data->dxgiAdapter);
     if (FAILED(result)) {
-        WIN_SetErrorFromHRESULT("IDXGIFactory6::EnumAdapterByGPUPreference", result);
+        WIN_SetErrorFromHRESULT("IDXGIFactory6::EnumAdapterByGpuPreference", result);
         goto done;
     }
 
@@ -1127,6 +1151,10 @@ static HRESULT D3D12_CreateDeviceResources(SDL_Renderer *renderer)
     SDL_PropertiesID props = SDL_GetRendererProperties(renderer);
     SDL_SetPointerProperty(props, SDL_PROP_RENDERER_D3D12_DEVICE_POINTER, data->d3dDevice);
     SDL_SetPointerProperty(props, SDL_PROP_RENDERER_D3D12_COMMAND_QUEUE_POINTER, data->commandQueue);
+
+#if defined(SDL_PLATFORM_XBOXONE) || defined(SDL_PLATFORM_XBOXSERIES)
+    SDL_AddEventWatch(D3D12_GDKEventFilter, data);
+#endif
 
 done:
     D3D_SAFE_RELEASE(d3dDevice);
@@ -2216,7 +2244,7 @@ static bool D3D12_LockTexture(SDL_Renderer *renderer, SDL_Texture *texture,
     if (pitchedDesc.Format == DXGI_FORMAT_R8_UNORM) {
         bpp = 1;
     } else {
-        bpp = SDL_BYTESPERPIXEL(texture->format);
+        bpp = 4;
     }
     pitchedDesc.RowPitch = D3D12_Align(rect->w * bpp, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
 
@@ -2274,7 +2302,7 @@ static void D3D12_UnlockTexture(SDL_Renderer *renderer, SDL_Texture *texture)
     if (pitchedDesc.Format == DXGI_FORMAT_R8_UNORM) {
         bpp = 1;
     } else {
-        bpp = SDL_BYTESPERPIXEL(texture->format);
+        bpp = 4;
     }
     pitchedDesc.RowPitch = D3D12_Align(textureData->lockedRect.w * bpp, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
 
@@ -2805,6 +2833,7 @@ static bool D3D12_SetDrawState(SDL_Renderer *renderer, const SDL_RenderCommand *
                 break;
             default:
                 return SDL_SetError("[direct3d12] Trying to set a sampler for a shader which doesn't have one");
+                break;
             }
 
             ID3D12GraphicsCommandList2_SetGraphicsRootDescriptorTable(rendererData->commandList, tableIndex, GPUHandle);
@@ -3513,14 +3542,21 @@ bool D3D12_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Proper
     renderer->DestroyTexture = D3D12_DestroyTexture;
     renderer->DestroyRenderer = D3D12_DestroyRenderer;
     renderer->SetVSync = D3D12_SetVSync;
-#if defined(SDL_PLATFORM_XBOXONE) || defined(SDL_PLATFORM_XBOXSERIES)
-    renderer->GDKSuspendRenderer = D3D12_GDKSuspendRenderer;
-    renderer->GDKResumeRenderer = D3D12_GDKResumeRenderer;
-#endif
     renderer->internal = data;
     D3D12_InvalidateCachedState(renderer);
 
     renderer->name = D3D12_RenderDriver.name;
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_ARGB8888);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_ABGR8888);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_XRGB8888);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_ABGR2101010);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_RGBA64_FLOAT);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_INDEX8);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_YV12);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_IYUV);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_NV12);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_NV21);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_P010);
     SDL_SetNumberProperty(SDL_GetRendererProperties(renderer), SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, 16384);
 
     data->syncInterval = 0;
@@ -3538,37 +3574,6 @@ bool D3D12_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Proper
     if (FAILED(D3D12_CreateWindowSizeDependentResources(renderer))) {
         return false;
     }
-
-    for (int i = 0; i < SDL_arraysize(dxgi_format_map); i++) {
-        D3D12_FEATURE_DATA_FORMAT_SUPPORT unorm, srgb;
-
-        unorm.Format = dxgi_format_map[i].unorm;
-        if (FAILED(ID3D12Device_CheckFeatureSupport(data->d3dDevice,
-                                                    D3D12_FEATURE_FORMAT_SUPPORT,
-                                                    &unorm,
-                                                    sizeof(unorm)))) {
-            continue;
-        }
-
-        srgb.Format = dxgi_format_map[i].srgb;
-        if (FAILED(ID3D12Device_CheckFeatureSupport(data->d3dDevice,
-                                                    D3D12_FEATURE_FORMAT_SUPPORT,
-                                                    &srgb,
-                                                    sizeof(srgb)))) {
-            continue;
-        }
-
-        if ((unorm.Support1 & D3D12_FORMAT_SUPPORT1_TEXTURE2D) &&
-            (srgb.Support1  & D3D12_FORMAT_SUPPORT1_TEXTURE2D)) {
-            SDL_AddSupportedTextureFormat(renderer, dxgi_format_map[i].sdl);
-        }
-    }
-    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_INDEX8);
-    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_YV12);
-    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_IYUV);
-    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_NV12);
-    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_NV21);
-    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_P010);
 
     return true;
 }

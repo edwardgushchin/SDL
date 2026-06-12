@@ -5,7 +5,7 @@ if(NOT DEFINED CMAKE_BUILD_TYPE)
 endif()
 
 # See docs/release_checklist.md
-project(SDL3 LANGUAGES C VERSION "3.5.0")
+project(SDL3 LANGUAGES C VERSION "3.4.10")
 
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   set(SDL3_MAINPROJECT ON)
@@ -217,10 +217,6 @@ else()
   set(SDL_OSS_DEFAULT OFF)
 endif()
 
-if(NOT SDL_SHARED_AVAILABLE)
-  set(SDL_SHARED_DEFAULT OFF)
-endif()
-
 if(SDL_SHARED_DEFAULT AND SDL_STATIC_DEFAULT AND SDL_SHARED_AVAILABLE)
   if(DEFINED BUILD_SHARED_LIBS)
     # When defined, use BUILD_SHARED_LIBS as default
@@ -391,21 +387,15 @@ set_option(SDL_LIBUDEV             "Enable libudev support" ON)
 set_option(SDL_ASAN                "Use AddressSanitizer to detect memory errors" OFF)
 set_option(SDL_CCACHE              "Use Ccache to speed up build" OFF)
 set_option(SDL_CLANG_TIDY          "Run clang-tidy static analysis" OFF)
-dep_option(SDL_GPU_OPENXR          "Build SDL_GPU with OpenXR support" ON "SDL_GPU;NOT RISCOS" OFF)
+
+if(EMSCRIPTEN)
+  option_string(SDL_EMSCRIPTEN_PERSISTENT_PATH  "Path to mount Emscripten IDBFS at startup or '' to disable" "")
+endif()
 
 set(SDL_VENDOR_INFO "" CACHE STRING "Vendor name and/or version to add to SDL_REVISION")
 
-if(DEFINED CACHE{SDL_SHARED} OR DEFINED CACHE{SDL_STATIC})
-  cmake_dependent_option(SDL_SHARED "Build a shared version of the library" ${SDL_SHARED_DEFAULT} SDL_SHARED_AVAILABLE OFF)
-  cmake_dependent_option(SDL_STATIC "Build a static version of the library" ${SDL_STATIC_DEFAULT} SDL_STATIC_AVAILABLE OFF)
-else()
-  if(NOT DEFINED SDL_SHARED)
-    set(SDL_SHARED ${SDL_SHARED_DEFAULT})
-  endif()
-  if(NOT DEFINED SDL_STATIC)
-    set(SDL_STATIC ${SDL_STATIC_DEFAULT})
-  endif()
-endif()
+cmake_dependent_option(SDL_SHARED "Build a shared version of the library" ${SDL_SHARED_DEFAULT} ${SDL_SHARED_AVAILABLE} OFF)
+cmake_dependent_option(SDL_STATIC "Build a static version of the library" ${SDL_STATIC_DEFAULT} ${SDL_STATIC_AVAILABLE} OFF)
 option(SDL_TEST_LIBRARY   "Build the SDL3_test library" ON)
 
 dep_option(SDL_TESTS           "Build the test directory" ${SDL3_MAINPROJECT} SDL_TEST_LIBRARY OFF)
@@ -1107,7 +1097,7 @@ if(SDL_LIBC)
   )
   if(WINDOWS)
     list(APPEND symbols_to_check
-      _copysign _fseeki64 _strrev _ui64toa _uitoa _ultoa _wcsdup
+      _copysign _fseeki64 _strrev _ui64toa _ultoa _wcsdup
     )
   else()
     list(APPEND symbols_to_check
@@ -1189,34 +1179,33 @@ if(SDL_LIBC)
     check_symbol_exists(posix_fallocate "fcntl.h" HAVE_POSIX_FALLOCATE)
     check_symbol_exists(posix_spawn_file_actions_addchdir "spawn.h" HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR)
     check_symbol_exists(posix_spawn_file_actions_addchdir_np "spawn.h" HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR_NP)
+  endif()
+  if(SDL_SYSTEM_ICONV)
+    check_c_source_compiles("
+      #define LIBICONV_PLUG 1 /* in case libiconv header is in include path */
+      #include <stddef.h>
+      #include <iconv.h>
+      int main(int argc, char **argv) {
+          return !iconv_open(NULL,NULL);
+      }" ICONV_IN_LIBC)
 
-    if(SDL_SYSTEM_ICONV)
-      check_c_source_compiles("
-        #define LIBICONV_PLUG 1 /* in case libiconv header is in include path */
-        #include <stddef.h>
-        #include <iconv.h>
-        int main(int argc, char **argv) {
-            return !iconv_open(NULL,NULL);
-        }" ICONV_IN_LIBC)
+    cmake_push_check_state()
+    list(APPEND CMAKE_REQUIRED_LIBRARIES iconv)
+    check_c_source_compiles("
+      #include <stddef.h>
+      #include <iconv.h>
+      int main(int argc, char **argv) {
+          return !iconv_open(NULL,NULL);
+      }" ICONV_IN_LIBICONV)
+    cmake_pop_check_state()
 
-      cmake_push_check_state()
-      list(APPEND CMAKE_REQUIRED_LIBRARIES iconv)
-      check_c_source_compiles("
-        #include <stddef.h>
-        #include <iconv.h>
-        int main(int argc, char **argv) {
-            return !iconv_open(NULL,NULL);
-        }" ICONV_IN_LIBICONV)
-      cmake_pop_check_state()
-
-      if(ICONV_IN_LIBC OR ICONV_IN_LIBICONV)
-        set(HAVE_ICONV 1)
-        set(HAVE_SYSTEM_ICONV TRUE)
-        if(ICONV_IN_LIBICONV AND (SDL_LIBICONV OR (NOT ICONV_IN_LIBC)))
-          sdl_link_dependency(iconv LIBS iconv)
-          set(SDL_USE_LIBICONV 1)
-          set(HAVE_LIBICONV TRUE)
-        endif()
+    if(ICONV_IN_LIBC OR ICONV_IN_LIBICONV)
+      set(HAVE_ICONV 1)
+      set(HAVE_SYSTEM_ICONV TRUE)
+      if(ICONV_IN_LIBICONV AND (SDL_LIBICONV OR (NOT ICONV_IN_LIBC)))
+        sdl_link_dependency(iconv LIBS iconv)
+        set(SDL_USE_LIBICONV 1)
+        set(HAVE_LIBICONV TRUE)
       endif()
     endif()
 
@@ -1268,8 +1257,6 @@ sdl_glob_sources(
   "${SDL3_SOURCE_DIR}/src/filesystem/*.h"
   "${SDL3_SOURCE_DIR}/src/gpu/*.c"
   "${SDL3_SOURCE_DIR}/src/gpu/*.h"
-  "${SDL3_SOURCE_DIR}/src/gpu/xr/*.c"
-  "${SDL3_SOURCE_DIR}/src/gpu/xr/*.h"
   "${SDL3_SOURCE_DIR}/src/joystick/*.c"
   "${SDL3_SOURCE_DIR}/src/joystick/*.h"
   "${SDL3_SOURCE_DIR}/src/haptic/*.c"
@@ -1668,6 +1655,11 @@ elseif(EMSCRIPTEN)
   # project. Uncomment at will for verbose cross-compiling -I/../ path info.
   sdl_compile_options(PRIVATE "-Wno-warn-absolute-paths")
 
+  if(NOT SDL_EMSCRIPTEN_PERSISTENT_PATH STREQUAL "")
+    set(SDL_EMSCRIPTEN_PERSISTENT_PATH_STRING "${SDL_EMSCRIPTEN_PERSISTENT_PATH}")
+    sdl_link_dependency(idbfs LIBS idbfs.js)
+  endif()
+
   sdl_glob_sources(
     "${SDL3_SOURCE_DIR}/src/main/emscripten/*.c"
     "${SDL3_SOURCE_DIR}/src/main/emscripten/*.h"
@@ -1809,7 +1801,7 @@ elseif(UNIX AND NOT APPLE AND NOT RISCOS AND NOT HAIKU)
           "${SDL3_SOURCE_DIR}/src/audio/netbsd/*.h"
         )
         set(HAVE_SDL_AUDIO TRUE)
-    elseif(QNX AND (CMAKE_SYSTEM_VERSION VERSION_LESS "8.0.0"))
+    elseif(QNX)
         set(SDL_AUDIO_DRIVER_QNX 1)
         sdl_glob_sources(
           "${SDL3_SOURCE_DIR}/src/audio/qnx/*.c"
@@ -2374,7 +2366,7 @@ elseif(WINDOWS)
   set(HAVE_SDL_STORAGE 1)
 
   # Libraries for Win32 native and MinGW
-  sdl_link_dependency(base LIBS kernel32 user32 gdi32 winmm imm32 ole32 oleaut32 version uuid advapi32 setupapi shell32 hid)
+  sdl_link_dependency(base LIBS kernel32 user32 gdi32 winmm imm32 ole32 oleaut32 version uuid advapi32 setupapi shell32)
 
   set(SDL_TIME_WINDOWS 1)
   sdl_glob_sources("${SDL3_SOURCE_DIR}/src/time/windows/*.c")
@@ -2725,13 +2717,6 @@ elseif(APPLE)
           )
           set(SDL_VIDEO_RENDER_METAL 1)
           set(HAVE_RENDER_METAL TRUE)
-        endif()
-        if (SDL_GPU)
-          set(SDL_GPU_METAL 1)
-          sdl_glob_sources(
-            "${SDL3_SOURCE_DIR}/src/gpu/metal/*.m"
-            "${SDL3_SOURCE_DIR}/src/gpu/metal/*.h"
-          )
         endif()
       endif()
     endif()
@@ -3249,6 +3234,7 @@ elseif(PS2)
       gskit
       dmakit
       ps2_drivers
+      atomic
   )
 elseif(N3DS)
   sdl_glob_sources("${SDL3_SOURCE_DIR}/src/main/n3ds/*.c")
@@ -3545,12 +3531,17 @@ if(SDL_GPU)
     set(SDL_GPU_VULKAN 1)
     set(HAVE_SDL_GPU TRUE)
   endif()
+  if(SDL_VIDEO_METAL)
+    sdl_glob_sources(
+      "${SDL3_SOURCE_DIR}/src/gpu/metal/*.m"
+      "${SDL3_SOURCE_DIR}/src/gpu/metal/*.h"
+    )
+    set(SDL_GPU_METAL 1)
+    set(HAVE_SDL_GPU TRUE)
+  endif()
   if(SDL_RENDER_GPU AND HAVE_SDL_GPU)
     set(SDL_VIDEO_RENDER_GPU 1)
     set(HAVE_RENDER_GPU TRUE)
-  endif()
-  if(SDL_GPU_OPENXR)
-    set(HAVE_GPU_OPENXR 1)
   endif()
 endif()
 
@@ -3710,7 +3701,7 @@ else()
   set(SDL_REVISION "" CACHE STRING "Custom SDL revision (only used when REVISION.txt does not exist)")
 endif()
 if(NOT SDL_REVISION)
-  # If SDL_REVISION is not overridden, use git to describe
+  # If SDL_REVISION is not overrided, use git to describe
   git_describe(SDL_REVISION_GIT)
   set(SDL_REVISION "SDL-${SDL3_VERSION}-${SDL_REVISION_GIT}")
 endif()
@@ -4001,6 +3992,7 @@ if(SDL_SHARED)
       )
     endif()
   endif()
+
   target_link_libraries(SDL3-shared PRIVATE ${SDL_CMAKE_DEPENDS})
   target_include_directories(SDL3-shared
     PRIVATE
@@ -4292,7 +4284,7 @@ if(SDL_INSTALL)
 
   if(ANDROID)
     if(TARGET SDL3-jar)
-      set(SDL_INSTALL_JAVADIR "${CMAKE_INSTALL_DATAROOTDIR}/java" CACHE PATH "Path where to install java classes + java sources")
+      set(SDL_INSTALL_JAVADIR "${CMAKE_INSTALL_DATAROOTDIR}/java" CACHE PATH "Path where to install java clases + java sources")
       set(PROGUARD_RULES_PATH "${CMAKE_CURRENT_SOURCE_DIR}/android-project/app/proguard-rules.pro")
       # install_jar or $<TARGET_PROPERTY:SDL3-jar,INSTALL_FILES> does not work on Windows: a SDL3.jar symlink is not generated
       install(FILES "${CMAKE_CURRENT_BINARY_DIR}/SDL3-${SDL3_VERSION}.jar"

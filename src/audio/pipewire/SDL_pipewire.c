@@ -256,8 +256,6 @@ static int hotplug_init_seq_val;
 static bool hotplug_init_complete;
 static bool hotplug_events_enabled;
 
-static bool pipewire_have_session_services;
-static bool pipewire_have_audio_service;
 static int pipewire_version_major;
 static int pipewire_version_minor;
 static int pipewire_version_patch;
@@ -440,7 +438,7 @@ static void core_events_interface_callback(void *object, uint32_t id, int seq)
     }
 }
 
-static void core_events_generic_callback(void *object, uint32_t id, int seq)
+static void core_events_metadata_callback(void *object, uint32_t id, int seq)
 {
     struct node_object *node = object;
 
@@ -451,7 +449,7 @@ static void core_events_generic_callback(void *object, uint32_t id, int seq)
 
 static const struct pw_core_events hotplug_init_core_events = { PW_VERSION_CORE_EVENTS, .info = core_events_hotplug_info_callback, .done = core_events_hotplug_init_callback };
 static const struct pw_core_events interface_core_events = { PW_VERSION_CORE_EVENTS, .done = core_events_interface_callback };
-static const struct pw_core_events generic_core_events = { PW_VERSION_CORE_EVENTS, .done = core_events_generic_callback };
+static const struct pw_core_events metadata_core_events = { PW_VERSION_CORE_EVENTS, .done = core_events_metadata_callback };
 
 static void hotplug_core_sync(struct node_object *node)
 {
@@ -654,35 +652,6 @@ static int metadata_property(void *object, Uint32 subject, const char *key, cons
 
 static const struct pw_metadata_events metadata_node_events = { PW_VERSION_METADATA_EVENTS, .property = metadata_property };
 
-// Client info node callback.
-static void client_info(void *data, const struct pw_client_info *info)
-{
-    // If WirePlumber lists the session services, check to see if audio is enabled.
-    const char *services = spa_dict_lookup(info->props, "session.services");
-    if (services) {
-        pipewire_have_session_services = true;
-
-        // Services are in a JSON array.
-        struct spa_json iter[2];
-        spa_json_init(&iter[0], services, SDL_strlen(services));
-        if (spa_json_enter_array(&iter[0], &iter[1]) > 0) {
-            char element[PW_MAX_IDENTIFIER_LENGTH];
-            while (spa_json_get_string(&iter[1], element, sizeof(element)) > 0) {
-                if (SDL_strcmp(element, "audio") == 0) {
-                    pipewire_have_audio_service = true;
-                    break;
-                }
-            }
-        }
-    }
-}
-
-static const struct pw_client_events client_node_events = {
-    .version = PW_VERSION_CLIENT_EVENTS,
-    .info = client_info,
-    .permissions = NULL
-};
-
 // Global registry callbacks
 static void registry_event_global_callback(void *object, uint32_t id, uint32_t permissions, const char *type, uint32_t version,
                                            const struct spa_dict *props)
@@ -745,18 +714,9 @@ static void registry_event_global_callback(void *object, uint32_t id, uint32_t p
             }
         }
     } else if (!SDL_strcmp(type, PW_TYPE_INTERFACE_Metadata)) {
-        node = node_object_new(id, type, version, &metadata_node_events, &generic_core_events);
+        node = node_object_new(id, type, version, &metadata_node_events, &metadata_core_events);
         if (!node) {
             SDL_SetError("Pipewire: Failed to allocate metadata node");
-            return;
-        }
-
-        // Update sync points
-        hotplug_core_sync(node);
-    } else if (!SDL_strcmp(type, PW_TYPE_INTERFACE_Client)) {
-        node = node_object_new(id, type, version, &client_node_events, &generic_core_events);
-        if (!node) {
-            SDL_SetError("Pipewire: Failed to allocate client info node");
             return;
         }
 
@@ -974,18 +934,18 @@ static void initialize_spa_info(const SDL_AudioSpec *spec, struct spa_audio_info
 
 static Uint8 *PIPEWIRE_GetDeviceBuf(SDL_AudioDevice *device, int *buffer_size)
 {
-    // See if a buffer is available. If this returns NULL, SDL_PlaybackAudioThreadIterate will return false, but since we own the thread, it won't kill playback.
-    // !!! FIXME: It's not clear to me if this ever returns NULL or if this was just defensive coding.
-
+    // See if a buffer is available. If this sets *buffer_size=0, then SDL_PlaybackAudioThreadIterate will skip this iteration but try again next time.
     struct pw_stream *stream = device->hidden->stream;
     struct pw_buffer *pw_buf = PIPEWIRE_pw_stream_dequeue_buffer(stream);
     if (pw_buf == NULL) {
+        *buffer_size = 0;
         return NULL;
     }
 
     struct spa_buffer *spa_buf = pw_buf->buffer;
     if (spa_buf->datas[0].data == NULL) {
         PIPEWIRE_pw_stream_queue_buffer(stream, pw_buf);
+        *buffer_size = 0;
         return NULL;
     }
 
@@ -1322,8 +1282,6 @@ static void PIPEWIRE_Deinitialize(void)
     if (pipewire_initialized) {
         hotplug_loop_destroy();
         deinit_pipewire_library();
-        pipewire_have_session_services = false;
-        pipewire_have_audio_service = false;
         pipewire_initialized = false;
     }
 }
@@ -1377,8 +1335,7 @@ static bool PIPEWIRE_PREFERRED_Init(SDL_AudioDriverImpl *impl)
 
     PIPEWIRE_pw_thread_loop_unlock(hotplug_loop);
 
-    if ((pipewire_have_session_services && !pipewire_have_audio_service) ||
-        (!pipewire_have_session_services && (no_devices || !pipewire_core_version_at_least(1, 0, 0)))) {
+    if (no_devices || !pipewire_core_version_at_least(1, 0, 0)) {
         PIPEWIRE_Deinitialize();
         return false;
     }

@@ -1805,7 +1805,6 @@ typedef struct SDL_GPUBufferCreateInfo
  *
  * \since This struct is available since SDL 3.2.0.
  *
- * \sa SDL_GPUTransferBufferUsage
  * \sa SDL_CreateGPUTransferBuffer
  */
 typedef struct SDL_GPUTransferBufferCreateInfo
@@ -2382,20 +2381,6 @@ extern SDL_DECLSPEC SDL_GPUDevice * SDLCALL SDL_CreateGPUDeviceWithProperties(
 #define SDL_PROP_GPU_DEVICE_CREATE_VULKAN_REQUIRE_HARDWARE_ACCELERATION_BOOLEAN "SDL.gpu.device.create.vulkan.requirehardwareacceleration"
 #define SDL_PROP_GPU_DEVICE_CREATE_VULKAN_OPTIONS_POINTER                       "SDL.gpu.device.create.vulkan.options"
 #define SDL_PROP_GPU_DEVICE_CREATE_METAL_ALLOW_MACFAMILY1_BOOLEAN               "SDL.gpu.device.create.metal.allowmacfamily1"
-
-#define SDL_PROP_GPU_DEVICE_CREATE_XR_ENABLE_BOOLEAN                            "SDL.gpu.device.create.xr.enable"
-#define SDL_PROP_GPU_DEVICE_CREATE_XR_INSTANCE_POINTER                          "SDL.gpu.device.create.xr.instance_out"
-#define SDL_PROP_GPU_DEVICE_CREATE_XR_SYSTEM_ID_POINTER                         "SDL.gpu.device.create.xr.system_id_out"
-#define SDL_PROP_GPU_DEVICE_CREATE_XR_VERSION_NUMBER                            "SDL.gpu.device.create.xr.version"
-#define SDL_PROP_GPU_DEVICE_CREATE_XR_FORM_FACTOR_NUMBER                        "SDL.gpu.device.create.xr.form_factor"
-#define SDL_PROP_GPU_DEVICE_CREATE_XR_EXTENSION_COUNT_NUMBER                    "SDL.gpu.device.create.xr.extensions.count"
-#define SDL_PROP_GPU_DEVICE_CREATE_XR_EXTENSION_NAMES_POINTER                   "SDL.gpu.device.create.xr.extensions.names"
-#define SDL_PROP_GPU_DEVICE_CREATE_XR_LAYER_COUNT_NUMBER                        "SDL.gpu.device.create.xr.layers.count"
-#define SDL_PROP_GPU_DEVICE_CREATE_XR_LAYER_NAMES_POINTER                       "SDL.gpu.device.create.xr.layers.names"
-#define SDL_PROP_GPU_DEVICE_CREATE_XR_APPLICATION_NAME_STRING                   "SDL.gpu.device.create.xr.application.name"
-#define SDL_PROP_GPU_DEVICE_CREATE_XR_APPLICATION_VERSION_NUMBER                "SDL.gpu.device.create.xr.application.version"
-#define SDL_PROP_GPU_DEVICE_CREATE_XR_ENGINE_NAME_STRING                        "SDL.gpu.device.create.xr.engine.name"
-#define SDL_PROP_GPU_DEVICE_CREATE_XR_ENGINE_VERSION_NUMBER                     "SDL.gpu.device.create.xr.engine.version"
 
 
 /**
@@ -4582,13 +4567,11 @@ extern SDL_DECLSPEC SDL_GPUTextureFormat SDLCALL SDL_GetGPUTextureFormatFromPixe
 #ifdef SDL_PLATFORM_GDK
 
 /**
- * Call this to suspend GPU operation on Xbox after receiving the
+ * Call this to suspend GPU operation on Xbox when you receive the
  * SDL_EVENT_DID_ENTER_BACKGROUND event.
  *
  * Do NOT call any SDL_GPU functions after calling this function! This must
  * also be called before calling SDL_GDKSuspendComplete.
- *
- * This function MUST be called from the application's render thread.
  *
  * \param device a GPU context.
  *
@@ -4599,13 +4582,11 @@ extern SDL_DECLSPEC SDL_GPUTextureFormat SDLCALL SDL_GetGPUTextureFormatFromPixe
 extern SDL_DECLSPEC void SDLCALL SDL_GDKSuspendGPU(SDL_GPUDevice *device);
 
 /**
- * Call this to resume GPU operation on Xbox after receiving the
+ * Call this to resume GPU operation on Xbox when you receive the
  * SDL_EVENT_WILL_ENTER_FOREGROUND event.
  *
  * When resuming, this function MUST be called before calling any other
  * SDL_GPU functions.
- *
- * This function MUST be called from the application's render thread.
  *
  * \param device a GPU context.
  *

@@ -340,8 +340,6 @@ static bool IOS_AddMFIJoystickDevice(SDL_JoystickDeviceItem *device, GCControlle
         name = "MFi Gamepad";
     }
 
-    device->name = SDL_CreateJoystickName(0, 0, NULL, name);
-
 #ifdef DEBUG_CONTROLLER_PROFILE
     NSLog(@"Product name: %@\n", controller.vendorName);
     NSLog(@"Product category: %@\n", controller.productCategory);
@@ -428,12 +426,19 @@ static bool IOS_AddMFIJoystickDevice(SDL_JoystickDeviceItem *device, GCControlle
         if (device->has_xbox_paddles) {
             // Assume Xbox One Elite Series 2 Controller unless/until GCController flows VID/PID
             product = USB_PRODUCT_XBOX_ONE_ELITE_SERIES_2_BLUETOOTH;
+
+            // controller.vendorName returns a generic name for Xbox controllers ("Controller"),
+            // and controller.productCategory only returns "Xbox One" for those controllers,
+            // so we give them proper names based on the ones from SDL_gamepad_db.h
+            name = "Xbox One Elite 2 Controller";
         } else if (device->has_xbox_share_button) {
             // Assume Xbox Series X Controller unless/until GCController flows VID/PID
             product = USB_PRODUCT_XBOX_SERIES_X_BLE;
+            name = "Xbox Series X Controller";
         } else {
             // Assume Xbox One S Bluetooth Controller unless/until GCController flows VID/PID
             product = USB_PRODUCT_XBOX_ONE_S_REV1_BLUETOOTH;
+            name = "Xbox One Wireless Controller";
         }
     } else if (device->is_ps4) {
         // Assume DS4 Slim unless/until GCController flows VID/PID
@@ -611,6 +616,8 @@ static bool IOS_AddMFIJoystickDevice(SDL_JoystickDeviceItem *device, GCControlle
         // We don't know how to get input events from this device
         return false;
     }
+    
+    device->name = SDL_CreateJoystickName(0, 0, NULL, name);
 
     Uint16 signature;
     if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *)) {
@@ -657,11 +664,16 @@ static void IOS_AddJoystickDevice(GCController *controller)
     device->pause_button_index = -1;
 
     if (controller) {
+#ifdef SDL_JOYSTICK_MFI
         if (!IOS_AddMFIJoystickDevice(device, controller)) {
             SDL_free(device->name);
             SDL_free(device);
             return;
         }
+#else
+        SDL_free(device);
+        return;
+#endif // SDL_JOYSTICK_MFI
     }
 
     if (deviceList == NULL) {
@@ -716,10 +728,7 @@ static SDL_JoystickDeviceItem *IOS_RemoveJoystickDevice(SDL_JoystickDeviceItem *
         // These were explicitly retained in the struct, so they should be explicitly released before freeing the struct.
         if (device->controller) {
             GCController *controller = CFBridgingRelease((__bridge CFTypeRef)(device->controller));
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             controller.controllerPausedHandler = nil;
-#pragma clang diagnostic pop
             device->controller = nil;
         }
         if (device->axes) {
@@ -924,14 +933,11 @@ static bool IOS_JoystickOpen(SDL_Joystick *joystick, int device_index)
 #ifdef SDL_JOYSTICK_MFI
         if (device->pause_button_index >= 0) {
             GCController *controller = device->controller;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             controller.controllerPausedHandler = ^(GCController *c) {
               if (joystick->hwdata) {
                   joystick->hwdata->pause_button_pressed = SDL_GetTicks();
               }
             };
-#pragma clang diagnostic pop
         }
 
         if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *)) {
@@ -1060,13 +1066,7 @@ static void IOS_MFIJoystickUpdate(SDL_Joystick *joystick)
 
             int button = 0;
             for (id key in device->buttons) {
-                bool down;
-                if (button == device->pause_button_index) {
-                    down = (device->pause_button_pressed > 0);
-                } else {
-                    down = buttons[key].isPressed;
-                }
-                SDL_SendJoystickButton(timestamp, joystick, button++, down);
+                SDL_SendJoystickButton(timestamp, joystick, button++, buttons[key].isPressed);
             }
         } else if (controller.extendedGamepad) {
             bool isstack;
@@ -1575,10 +1575,7 @@ static void IOS_JoystickClose(SDL_Joystick *joystick)
 
         if (device->controller) {
             GCController *controller = device->controller;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             controller.controllerPausedHandler = nil;
-#pragma clang diagnostic pop
             controller.playerIndex = -1;
 
             if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *)) {
@@ -1773,6 +1770,11 @@ static bool IOS_JoystickGetGamepadMapping(int device_index, SDL_GamepadMapping *
 bool IOS_SupportedHIDDevice(IOHIDDeviceRef device)
 {
     if (!SDL_GetHintBoolean(SDL_HINT_JOYSTICK_MFI, true)) {
+        return false;
+    }
+
+    if (IOHIDDeviceGetProperty(device, CFSTR(kIOHIDVirtualHIDevice)) == kCFBooleanTrue) {
+        // Steam virtual gamepads always have kIOHIDVirtualHIDevice property unlike real devices, and are also not supported as GCController
         return false;
     }
 

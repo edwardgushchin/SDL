@@ -22,6 +22,7 @@
 
 #ifdef SDL_VIDEO_RENDER_GPU
 
+#include "../../events/SDL_windowevents_c.h"
 #include "../../video/SDL_pixels_c.h"
 #include "../SDL_d3dmath.h"
 #include "../SDL_sysrender.h"
@@ -152,19 +153,6 @@ typedef struct GPU_TextureData
     SDL_GPUTexture *textureNV;
 #endif
 } GPU_TextureData;
-
-// TODO: Sort this list based on what the GPU driver prefers?
-static const SDL_PixelFormat supported_formats[] = {
-    SDL_PIXELFORMAT_BGRA32, // SDL_PIXELFORMAT_ARGB8888 on little endian systems
-    SDL_PIXELFORMAT_RGBA32,
-    SDL_PIXELFORMAT_BGRX32,
-    SDL_PIXELFORMAT_RGBX32,
-    SDL_PIXELFORMAT_ABGR2101010,
-    SDL_PIXELFORMAT_RGBA64_FLOAT,
-    SDL_PIXELFORMAT_RGB565,
-    SDL_PIXELFORMAT_ARGB1555,
-    SDL_PIXELFORMAT_ARGB4444
-};
 
 static bool GPU_SupportsBlendMode(SDL_Renderer *renderer, SDL_BlendMode blendMode)
 {
@@ -678,7 +666,7 @@ static bool GPU_QueueGeometry(SDL_Renderer *renderer, SDL_RenderCommand *cmd, SD
     int i;
     int count = indices ? num_indices : num_vertices;
     float *verts;
-    size_t sz = 2 * sizeof(float) + 4 * sizeof(float) + 2 * sizeof(float);
+    size_t sz = 2 * sizeof(float) + 4 * sizeof(float) + (texture ? 2 : 0) * sizeof(float);
     bool convert_color = SDL_RenderingLinearSpace(renderer);
 
     verts = (float *)SDL_AllocateRenderVertices(renderer, count * sz, 0, &cmd->data.draw.first);
@@ -718,13 +706,10 @@ static bool GPU_QueueGeometry(SDL_Renderer *renderer, SDL_RenderCommand *cmd, SD
         *(verts++) = col_.b;
         *(verts++) = col_.a;
 
-        if (uv) {
+        if (texture) {
             float *uv_ = (float *)((char *)uv + j * uv_stride);
             *(verts++) = uv_[0];
             *(verts++) = uv_[1];
-        } else {
-            *(verts++) = 0.0f;
-            *(verts++) = 0.0f;
         }
     }
     return true;
@@ -1517,6 +1502,9 @@ static bool GPU_RenderPresent(SDL_Renderer *renderer)
 
             if (swapchain_texture_width != data->backbuffer.width || swapchain_texture_height != data->backbuffer.height) {
                 CreateBackbuffer(data, swapchain_texture_width, swapchain_texture_height, SDL_GetGPUSwapchainTextureFormat(data->device, renderer->window));
+
+                // Notify the application that it needs to redraw this frame
+                SDL_SendWindowEvent(renderer->window, SDL_EVENT_WINDOW_EXPOSED, 0, 0);
             }
         } else {
             SDL_SubmitGPUCommandBuffer(data->state.command_buffer);
@@ -1563,19 +1551,17 @@ static void GPU_DestroyTexture(SDL_Renderer *renderer, SDL_Texture *texture)
 }
 
 #ifdef SDL_PLATFORM_GDK
-
-static void GPU_GDKSuspendRenderer(SDL_Renderer *renderer)
+static bool SDLCALL GPU_GDKEventFilter(void *userdata, SDL_Event *event)
 {
-    GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
-    SDL_GDKSuspendGPU(data->device);
+    GPU_RenderData *data = (GPU_RenderData *)userdata;
+    SDL_assert(!data->external_device);
+    if (event->type == SDL_EVENT_DID_ENTER_BACKGROUND) {
+        SDL_GDKSuspendGPU(data->device);
+    } else if (event->type == SDL_EVENT_WILL_ENTER_FOREGROUND) {
+        SDL_GDKResumeGPU(data->device);
+    }
+    return true;
 }
-
-static void GPU_GDKResumeRenderer(SDL_Renderer *renderer)
-{
-    GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
-    SDL_GDKResumeGPU(data->device);
-}
-
 #endif
 
 static void GPU_DestroyRenderer(SDL_Renderer *renderer)
@@ -1611,6 +1597,9 @@ static void GPU_DestroyRenderer(SDL_Renderer *renderer)
     if (data->device) {
         GPU_ReleaseShaders(&data->shaders, data->device);
         if (!data->external_device) {
+#ifdef SDL_PLATFORM_GDK
+            SDL_RemoveEventWatch(GPU_GDKEventFilter, data);
+#endif
             SDL_DestroyGPUDevice(data->device);
         }
     }
@@ -1721,10 +1710,6 @@ static bool GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_P
     renderer->DestroyTexture = GPU_DestroyTexture;
     renderer->DestroyRenderer = GPU_DestroyRenderer;
     renderer->SetVSync = GPU_SetVSync;
-#ifdef SDL_PLATFORM_GDK
-    renderer->GDKSuspendRenderer = GPU_GDKSuspendRenderer;
-    renderer->GDKResumeRenderer = GPU_GDKResumeRenderer;
-#endif
     renderer->internal = data;
     renderer->window = window;
     renderer->name = GPU_RenderDriver.name;
@@ -1778,6 +1763,10 @@ static bool GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_P
         if (!data->device) {
             return false;
         }
+
+#ifdef SDL_PLATFORM_GDK
+        SDL_AddEventWatch(GPU_GDKEventFilter, data);
+#endif
     }
 
     if (!GPU_InitShaders(&data->shaders, data->device)) {
@@ -1827,14 +1816,12 @@ static bool GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_P
         }
     }
 
-    for (int i = 0; i < SDL_arraysize(supported_formats); i++) {
-        if (SDL_GPUTextureSupportsFormat(data->device,
-                                         SDL_GetGPUTextureFormatFromPixelFormat(supported_formats[i]),
-                                         SDL_GPU_TEXTURETYPE_2D,
-                                         SDL_GPU_TEXTUREUSAGE_SAMPLER)) {
-            SDL_AddSupportedTextureFormat(renderer, supported_formats[i]);
-        }
-    }
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_BGRA32);    // SDL_PIXELFORMAT_ARGB8888 on little endian systems
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_RGBA32);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_BGRX32);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_RGBX32);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_ABGR2101010);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_RGBA64_FLOAT);
     SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_INDEX8);
     SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_YV12);
     SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_IYUV);

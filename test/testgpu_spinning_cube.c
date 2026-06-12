@@ -386,7 +386,7 @@ static void shutdownGPU(void)
 
 
 /* Call this instead of exit(), so we can clean up SDL: atexit() is evil. */
-static SDL_NORETURN void
+static void
 quit(int rc)
 {
     shutdownGPU();

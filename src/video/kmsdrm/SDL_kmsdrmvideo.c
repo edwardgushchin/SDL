@@ -74,6 +74,10 @@ static char kmsdrm_dri_cardpath[32];
 #define DRM_FORMAT_MOD_LINEAR fourcc_mod_code(NONE, 0)
 #endif
 
+#ifndef EGL_PLATFORM_GBM_MESA
+#define EGL_PLATFORM_GBM_MESA 0x31D7
+#endif
+
 static int get_driindex(void)
 {
     int available = -ENOENT;
@@ -692,7 +696,7 @@ static SDL_VideoDevice *KMSDRM_CreateDevice(void)
     device->GL_GetSwapInterval = KMSDRM_GLES_GetSwapInterval;
     device->GL_SwapWindow = KMSDRM_GLES_SwapWindow;
     device->GL_DestroyContext = KMSDRM_GLES_DestroyContext;
-    device->GL_SetDefaultProfileConfig = KMSDRM_GLES_SetDefaultProfileConfig;
+    device->GL_DefaultProfileConfig = KMSDRM_GLES_DefaultProfileConfig;
 
 #ifdef SDL_VIDEO_VULKAN
     device->Vulkan_LoadLibrary = KMSDRM_Vulkan_LoadLibrary;
@@ -1125,6 +1129,7 @@ static void KMSDRM_AddDisplay(SDL_VideoDevice *_this, drmModeConnector *conn, dr
        to sane values. */
     dispdata->cursor_bo = NULL;
     dispdata->cursor_bo_drm_fd = -1;
+    dispdata->kms_in_fence_fd = -1;
     dispdata->kms_out_fence_fd = -1;
 
     /* Since we create and show the default cursor on KMSDRM_InitMouse(),
@@ -1692,6 +1697,22 @@ static void KMSDRM_DestroySurfaces(SDL_VideoDevice *_this, SDL_Window *window)
     }
 
     /***************************/
+    // Destroy the GBM buffers
+    /***************************/
+
+    if (windata->bo) {
+        if (windata->bo != windata->next_bo) {
+            KMSDRM_gbm_surface_release_buffer(windata->gs, windata->bo);
+        }
+        windata->bo = NULL;
+    }
+
+    if (windata->next_bo) {
+        KMSDRM_gbm_surface_release_buffer(windata->gs, windata->next_bo);
+        windata->next_bo = NULL;
+    }
+
+    /***************************/
     // Destroy the EGL surface
     /***************************/
 
@@ -1700,20 +1721,6 @@ static void KMSDRM_DestroySurfaces(SDL_VideoDevice *_this, SDL_Window *window)
     if (windata->egl_surface != EGL_NO_SURFACE) {
         SDL_EGL_DestroySurface(_this, windata->egl_surface);
         windata->egl_surface = EGL_NO_SURFACE;
-    }
-
-    /***************************/
-    // Destroy the GBM buffers
-    /***************************/
-
-    if (windata->bo) {
-        KMSDRM_gbm_surface_release_buffer(windata->gs, windata->bo);
-        windata->bo = NULL;
-    }
-
-    if (windata->next_bo) {
-        KMSDRM_gbm_surface_release_buffer(windata->gs, windata->next_bo);
-        windata->next_bo = NULL;
     }
 
     /***************************/
@@ -2128,12 +2135,12 @@ bool KMSDRM_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Propert
            before we call KMSDRM_GBMInit(), causing all GLES programs to fail. */
         if (!_this->egl_data) {
             egl_display = (NativeDisplayType)_this->internal->gbm_dev;
-            if (!SDL_EGL_LoadLibrary(_this, NULL, egl_display)) {
+            if (!SDL_EGL_LoadLibrary(_this, NULL, egl_display, EGL_PLATFORM_GBM_MESA)) {
                 // Try again with OpenGL ES 2.0
                 _this->gl_config.profile_mask = SDL_GL_CONTEXT_PROFILE_ES;
                 _this->gl_config.major_version = 2;
                 _this->gl_config.minor_version = 0;
-                if (!SDL_EGL_LoadLibrary(_this, NULL, egl_display)) {
+                if (!SDL_EGL_LoadLibrary(_this, NULL, egl_display, EGL_PLATFORM_GBM_MESA)) {
                     return SDL_SetError("Can't load EGL/GL library on window creation.");
                 }
             }

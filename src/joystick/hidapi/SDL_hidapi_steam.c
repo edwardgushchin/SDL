@@ -29,7 +29,9 @@
 #ifdef SDL_JOYSTICK_HIDAPI_STEAM
 
 // Define this if you want to log all packets from the controller
-// #define DEBUG_STEAM_PROTOCOL
+#if 0
+#define DEBUG_STEAM_PROTOCOL
+#endif
 
 #define SDL_HINT_JOYSTICK_HIDAPI_STEAM_PAIRING_ENABLED    "SDL_JOYSTICK_HIDAPI_STEAM_PAIRING_ENABLED"
 
@@ -539,7 +541,7 @@ static bool ResetSteamController(SDL_HIDAPI_Device *dev, bool bSuppressErrorSpew
     buf[3 + nSettings * 3] = SETTING;                      \
     buf[3 + nSettings * 3 + 1] = ((uint16_t)VALUE) & 0xFF; \
     buf[3 + nSettings * 3 + 2] = ((uint16_t)VALUE) >> 8;   \
-    ++nSettings
+    ++nSettings;
 
     SDL_zero(buf);
     buf[1] = ID_SET_SETTINGS_VALUES;

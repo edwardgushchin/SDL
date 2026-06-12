@@ -203,7 +203,7 @@ static void HIDAPI_DriverSteamHori_HandleStatePacket(SDL_Joystick *joystick, SDL
         return;
     }
 
-#define READ_STICK_AXIS(offset) \
+    #define READ_STICK_AXIS(offset) \
     (data[offset] == 0x80 ? 0 : (Sint16)HIDAPI_RemapVal((float)((int)data[offset] - 0x80), -0x80, 0xff - 0x80, SDL_MIN_SINT16, SDL_MAX_SINT16))
     {
         axis = READ_STICK_AXIS(1);
@@ -307,7 +307,7 @@ static void HIDAPI_DriverSteamHori_HandleStatePacket(SDL_Joystick *joystick, SDL
         Uint32 delta;
         Uint16 tick = LOAD16(data[10],
                              data[11]);
-        if (ctx->last_tick < tick) {
+        if (ctx->last_tick <= tick) {
             delta = (tick - ctx->last_tick);
         } else {
             delta = (SDL_MAX_UINT16 - ctx->last_tick + tick + 1);

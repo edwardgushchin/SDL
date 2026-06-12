@@ -61,7 +61,7 @@ typedef struct WindowsGamingInputControllerState
     int steam_virtual_gamepad_slot;
 } WindowsGamingInputControllerState;
 
-typedef HRESULT(WINAPI *CoIncrementMTAUsage_t)(CO_MTA_USAGE_COOKIE *pCookie);
+typedef HRESULT(WINAPI *CoIncrementMTAUsage_t)(HANDLE* pCookie); // CO_MTA_USAGE_COOKIE*
 typedef HRESULT(WINAPI *RoGetActivationFactory_t)(HSTRING activatableClassId, REFIID iid, void **factory);
 typedef HRESULT(WINAPI *WindowsCreateStringReference_t)(PCWSTR sourceString, UINT32 length, HSTRING_HEADER *hstringHeader, HSTRING *string);
 typedef HRESULT(WINAPI *WindowsDeleteString_t)(HSTRING string);
@@ -595,7 +595,7 @@ static bool WGI_JoystickInit(void)
     }
     wgi.ro_initialized = true;
 
-#define RESOLVE(x) wgi.x = (x##_t)WIN_LoadComBaseFunction(#x); if (!wgi.x) return WIN_SetError("GetProcAddress failed for " #x)
+#define RESOLVE(x) wgi.x = (x##_t)WIN_LoadComBaseFunction(#x); if (!wgi.x) return WIN_SetError("GetProcAddress failed for " #x);
     RESOLVE(CoIncrementMTAUsage);
     RESOLVE(RoGetActivationFactory);
     RESOLVE(WindowsCreateStringReference);
@@ -609,7 +609,7 @@ static bool WGI_JoystickInit(void)
          * As a workaround, we will keep a reference to the MTA to prevent COM from unloading DLLs later.
          * See https://github.com/libsdl-org/SDL/issues/5552 for more details.
          */
-        static CO_MTA_USAGE_COOKIE cookie = NULL;
+        static HANDLE cookie = NULL; // CO_MTA_USAGE_COOKIE
         if (!cookie) {
             hr = wgi.CoIncrementMTAUsage(&cookie);
             if (FAILED(hr)) {

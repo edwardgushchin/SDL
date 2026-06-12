@@ -49,18 +49,16 @@
 
 // EGL implementation of SDL OpenGL support
 
-void KMSDRM_GLES_SetDefaultProfileConfig(SDL_VideoDevice *_this)
+void KMSDRM_GLES_DefaultProfileConfig(SDL_VideoDevice *_this, int *mask, int *major, int *minor)
 {
     /* if SDL was _also_ built with the Raspberry Pi driver (so we're
        definitely a Pi device) or with the ROCKCHIP video driver
        (it's a ROCKCHIP device),  default to GLES2. */
 #if defined(SDL_VIDEO_DRIVER_RPI) || defined(SDL_VIDEO_DRIVER_ROCKCHIP)
-    _this->gl_config.profile_mask = SDL_GL_CONTEXT_PROFILE_ES;
-    _this->gl_config.major_version = 2;
-    _this->gl_config.minor_version = 0;
+    *mask = SDL_GL_CONTEXT_PROFILE_ES;
+    *major = 2;
+    *minor = 0;
 #endif
-
-    _this->gl_config.egl_platform = EGL_PLATFORM_GBM_MESA;
 }
 
 bool KMSDRM_GLES_LoadLibrary(SDL_VideoDevice *_this, const char *path)
@@ -72,7 +70,7 @@ bool KMSDRM_GLES_LoadLibrary(SDL_VideoDevice *_this, const char *path)
        call order in SDL_CreateWindow(). */
 #if 0
     NativeDisplayType display = (NativeDisplayType)_this->internal->gbm_dev;
-    return SDL_EGL_LoadLibrary(_this, path, display);
+    return SDL_EGL_LoadLibrary(_this, path, display, EGL_PLATFORM_GBM_MESA);
 #endif
     return true;
 }

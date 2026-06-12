@@ -1118,7 +1118,7 @@ static int SDLCALL surface_testCompleteSurfaceConversion(void *arg)
  */
 static int SDLCALL surface_testLoadFailure(void *arg)
 {
-    SDL_Surface *face = SDL_LoadBMP("nonexistent.bmp");
+    SDL_Surface *face = SDL_LoadBMP("nonexistant.bmp");
     SDLTest_AssertCheck(face == NULL, "SDL_CreateLoadBmp");
 
     return TEST_COMPLETED;
@@ -1570,8 +1570,7 @@ static int SDLCALL surface_testOverflow(void *arg)
     SDLTest_AssertCheck(SDL_strcmp(SDL_GetError(), expectedError) == 0,
                         "Expected \"%s\", got \"%s\"", expectedError, SDL_GetError());
 
-    const bool is_32bit_system_with_int_larger_32bit = sizeof(size_t) == 4 && sizeof(int) >= 4;
-    if (is_32bit_system_with_int_larger_32bit) {
+    if (sizeof(size_t) == 4 && sizeof(int) >= 4) {
         SDL_ClearError();
         expectedError = "aligning pitch would overflow";
         /* 0x5555'5555 * 3bpp = 0xffff'ffff which fits in size_t, but adding
@@ -1655,7 +1654,7 @@ static int surface_testSetGetSurfaceClipRect(void *args)
     }
     SDL_DestroySurface(s);
     return TEST_COMPLETED;
-}
+};
 
 static int SDLCALL surface_testFlip(void *arg)
 {

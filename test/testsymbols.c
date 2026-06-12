@@ -40,8 +40,6 @@ extern SDL_DECLSPEC void SDLCALL SDL_GDKSuspendGPU(void);
 extern SDL_DECLSPEC void SDLCALL SDL_GDKSuspendComplete(void);
 extern SDL_DECLSPEC void SDLCALL SDL_GetGDKDefaultUser(void);
 extern SDL_DECLSPEC void SDLCALL SDL_GetGDKTaskQueue(void);
-extern SDL_DECLSPEC void SDLCALL SDL_GDKSuspendRenderer(void);
-extern SDL_DECLSPEC void SDLCALL SDL_GDKResumeRenderer(void);
 #endif
 
 #if !defined(SDL_PLATFORM_IOS)
@@ -67,8 +65,6 @@ extern SDL_DECLSPEC void SDLCALL SDL_SetWindowsMessageHook(void);
 #endif
 
 extern SDL_DECLSPEC void SDLCALL JNI_OnLoad(void);
-
-#include <SDL3/SDL_openxr.h>
 
 static const struct {
     const char *name;

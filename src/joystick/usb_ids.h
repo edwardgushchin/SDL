@@ -53,6 +53,7 @@
 #define USB_VENDOR_POWERA_ALT   0x20d6
 #define USB_VENDOR_QANBA        0x2c22
 #define USB_VENDOR_RAZER        0x1532
+#define USB_VENDOR_RED_OCTANE   0x1430
 #define USB_VENDOR_SAITEK       0x06a3
 #define USB_VENDOR_SCEA         0x12ba
 #define USB_VENDOR_SHANWAN      0x2563
@@ -78,6 +79,7 @@
 #define USB_PRODUCT_ASTRO_C40_XBOX360                     0x0024
 #define USB_PRODUCT_BACKBONE_ONE_IOS                      0x0103
 #define USB_PRODUCT_BACKBONE_ONE_IOS_PS5                  0x0104
+#define USB_PRODUCT_BACKBONE_ONE_PS5_V2                   0x0304
 #define USB_PRODUCT_BDA_XB1_CLASSIC                       0x581a
 #define USB_PRODUCT_BDA_XB1_FIGHTPAD                      0x791a
 #define USB_PRODUCT_BDA_XB1_SPECTRA_PRO                   0x592a
@@ -88,7 +90,6 @@
 #define USB_PRODUCT_FLYDIGI_V1_GAMEPAD                    0x2412
 #define USB_PRODUCT_FLYDIGI_V2_APEX                       0x2501
 #define USB_PRODUCT_FLYDIGI_V2_VADER                      0x2401
-#define USB_PRODUCT_GAMESIR_GAMEPAD_G7_PRO_8K             0x10B8 // Wired/2.4G/Bluetooth 8K mode
 #define USB_PRODUCT_HARMONIX_WII_RB1_GUITAR               0x0004
 #define USB_PRODUCT_HARMONIX_WII_RB1_DRUMS                0x0005
 #define USB_PRODUCT_HARMONIX_WII_RB2_GUITAR               0x3010
@@ -102,6 +103,9 @@
 #define USB_PRODUCT_LOGITECH_F310                         0xc216
 #define USB_PRODUCT_LOGITECH_CHILLSTREAM                  0xcad1
 #define USB_PRODUCT_MADCATZ_SAITEK_SIDE_PANEL_CONTROL_DECK 0x2218
+#define USB_PRODUCT_MADCATZ_XB1_STRATOCASTER_GUITAR       0x4161
+#define USB_PRODUCT_MADCATZ_XB1_DRUM_KIT                  0x4262
+#define USB_PRODUCT_MADCATZ_XB1_LEGACY_ADAPTER            0x4164
 #define USB_PRODUCT_NACON_REVOLUTION_5_PRO_PS4_WIRELESS   0x0d16
 #define USB_PRODUCT_NACON_REVOLUTION_5_PRO_PS4_WIRED      0x0d17
 #define USB_PRODUCT_NACON_REVOLUTION_5_PRO_PS5_WIRELESS   0x0d18
@@ -127,6 +131,9 @@
 #define USB_PRODUCT_NVIDIA_SHIELD_CONTROLLER_V104         0x7214
 #define USB_PRODUCT_PDP_ROCK_CANDY                        0x0246
 #define USB_PRODUCT_PDP_REALMZ_WIRELESS                   0x018c
+#define USB_PRODUCT_PDP_XB1_DRUM_KIT                      0x0171
+#define USB_PRODUCT_PDP_XB1_JAGUAR_GUITAR                 0x0170
+#define USB_PRODUCT_PDP_XB1_RIFFMASTER_GUITAR             0x0248
 #define USB_PRODUCT_POWERA_MINI                           0x541a
 #define USB_PRODUCT_RAZER_ATROX                           0x0a00
 #define USB_PRODUCT_RAZER_KITSUNE                         0x1012
@@ -146,6 +153,7 @@
 #define USB_PRODUCT_RAZER_WOLVERINE_V2_PRO_XBOX_WIRED     0x1010
 #define USB_PRODUCT_RAZER_WOLVERINE_V2_PRO_XBOX_WIRELESS  0x1011
 #define USB_PRODUCT_RAZER_WOLVERINE_V3_PRO                0x0a3f
+#define USB_PRODUCT_RED_OCTANE_XB1_GUITAR_HERO_LIVE_GUITAR 0x0170
 #define USB_PRODUCT_SAITEK_CYBORG_V3                      0xf622
 #define USB_PRODUCT_SCEA_PS3_GH_GUITAR                    0x0100
 #define USB_PRODUCT_SCEA_PS3_GH_DRUMS                     0x0120

@@ -67,10 +67,7 @@ int SDL_RunApp(int argc, char *argv[], SDL_main_func mainFunction, void *reserve
 // Load a launch image using the old UILaunchImageFile-era naming rules.
 static UIImage *SDL_LoadLaunchImageNamed(NSString *name, int screenh)
 {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     UIInterfaceOrientation curorient = [UIApplication sharedApplication].statusBarOrientation;
-#pragma clang diagnostic pop
     UIUserInterfaceIdiom idiom = [UIDevice currentDevice].userInterfaceIdiom;
     UIImage *image = nil;
 
@@ -130,11 +127,8 @@ static UIImage *SDL_LoadLaunchImageNamed(NSString *name, int screenh)
     [self.storyboardViewController didMoveToParentViewController:self];
 
 #ifndef SDL_PLATFORM_VISIONOS
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     UIApplication.sharedApplication.statusBarHidden = self.prefersStatusBarHidden;
     UIApplication.sharedApplication.statusBarStyle = self.preferredStatusBarStyle;
-#pragma clang diagnostic pop
 #endif
 }
 
@@ -213,10 +207,7 @@ static UIImage *SDL_LoadLaunchImageNamed(NSString *name, int screenh)
 
 
 #if !defined(SDL_PLATFORM_TVOS) && !defined(SDL_PLATFORM_VISIONOS)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         UIInterfaceOrientation curorient = [UIApplication sharedApplication].statusBarOrientation;
-#pragma clang diagnostic pop
 
         // We always want portrait-oriented size, to match UILaunchImageSize.
         if (screenw > screenh) {
@@ -352,6 +343,7 @@ API_AVAILABLE(ios(13.0))
 @implementation SDLUIKitSceneDelegate
 {
     UIWindow *launchWindow;
+    NSMutableArray<NSURL *> *launchURLs;
 }
 
 + (NSString *)getSceneDelegateClassName
@@ -411,15 +403,16 @@ API_AVAILABLE(ios(13.0))
     // Set working directory to resource path
     [[NSFileManager defaultManager] changeCurrentDirectoryPath:[bundle resourcePath]];
 
-    // Handle any connection options (like opening URLs)
+    launchURLs = [[NSMutableArray alloc] init];
+
     for (NSUserActivity *activity in connectionOptions.userActivities) {
         if (activity.webpageURL) {
-            [self handleURL:activity.webpageURL];
+            [launchURLs addObject:activity.webpageURL];
         }
     }
 
     for (UIOpenURLContext *urlContext in connectionOptions.URLContexts) {
-        [self handleURL:urlContext.URL];
+        [launchURLs addObject:urlContext.URL];
     }
 
     SDL_SetMainReady();
@@ -488,6 +481,7 @@ API_AVAILABLE(ios(13.0))
 - (void)postFinishLaunch
 {
     [self performSelector:@selector(hideLaunchScreen) withObject:nil afterDelay:0.0];
+    [self performSelector:@selector(processLaunchURLs) withObject:nil afterDelay:0.0];
 
     SDL_SetiOSEventPump(true);
     exit_status = SDL_CallMainFunction(forward_argc, forward_argv, forward_main);
@@ -497,6 +491,14 @@ API_AVAILABLE(ios(13.0))
         launchWindow.hidden = YES;
         launchWindow = nil;
     }
+}
+
+- (void)processLaunchURLs
+{
+    for (NSURL *url in launchURLs) {
+        [self handleURL:url];
+    }
+    launchURLs = nil;
 }
 
 - (UISceneConfiguration *)application:(UIApplication *)application configurationForConnectingSceneSession:(UISceneSession *)connectingSceneSession options:(UISceneConnectionOptions *)options API_AVAILABLE(ios(13.0))

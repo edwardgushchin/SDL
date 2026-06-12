@@ -72,7 +72,7 @@ static SDL_HIDAPI_DeviceDriver *SDL_HIDAPI_drivers[] = {
 #endif
 #ifdef SDL_JOYSTICK_HIDAPI_STEAMDECK
     &SDL_HIDAPI_DriverSteamTriton,
-#endif
+#endif 
 #ifdef SDL_JOYSTICK_HIDAPI_SWITCH
     &SDL_HIDAPI_DriverNintendoClassic,
     &SDL_HIDAPI_DriverJoyCons,
@@ -105,9 +105,6 @@ static SDL_HIDAPI_DeviceDriver *SDL_HIDAPI_drivers[] = {
 #endif
 #ifdef SDL_JOYSTICK_HIDAPI_SINPUT
     &SDL_HIDAPI_DriverSInput,
-#endif
-#ifdef SDL_JOYSTICK_HIDAPI_GAMESIR
-    &SDL_HIDAPI_DriverGameSir,
 #endif
 #ifdef SDL_JOYSTICK_HIDAPI_ZUIKI
     &SDL_HIDAPI_DriverZUIKI,
@@ -288,6 +285,7 @@ static SDL_GamepadType SDL_GetJoystickGameControllerProtocol(const char *name, U
             0x24c6, // PowerA
             0x2c22, // Qanba
             0x2dc8, // 8BitDo
+            0x3537, // GameSir
             0x37d7, // Flydigi
             0x9886, // ASTRO Gaming
         };
@@ -442,15 +440,19 @@ static void HIDAPI_CleanupDeviceDriver(SDL_HIDAPI_Device *device)
     device->driver->FreeDevice(device);
     device->driver = NULL;
 
-    if (device->dev) {
-        SDL_hid_close(device->dev);
-        device->dev = NULL;
-    }
+    SDL_LockMutex(device->dev_lock);
+    {
+        if (device->dev) {
+            SDL_hid_close(device->dev);
+            device->dev = NULL;
+        }
 
-    if (device->context) {
-        SDL_free(device->context);
-        device->context = NULL;
+        if (device->context) {
+            SDL_free(device->context);
+            device->context = NULL;
+        }
     }
+    SDL_UnlockMutex(device->dev_lock);
 }
 
 static void HIDAPI_SetupDeviceDriver(SDL_HIDAPI_Device *device, bool *removed) SDL_NO_THREAD_SAFETY_ANALYSIS // We unlock the joystick lock to be able to open the HID device on Android
@@ -896,14 +898,19 @@ static SDL_HIDAPI_Device *HIDAPI_AddDevice(const struct SDL_hid_device_info *inf
     for (curr = SDL_HIDAPI_devices, last = NULL; curr; last = curr, curr = curr->next) {
     }
 
+    char *path = SDL_strdup(info->path);
+    if (!path) {
+        SDL_OutOfMemory();
+        return NULL;
+    }
+
     device = (SDL_HIDAPI_Device *)SDL_calloc(1, sizeof(*device));
     if (!device) {
+        SDL_free(path);
         return NULL;
     }
     SDL_SetObjectValid(device, SDL_OBJECT_TYPE_HIDAPI_JOYSTICK, true);
-    if (info->path) {
-        device->path = SDL_strdup(info->path);
-    }
+    device->path = path;
     device->seen = true;
     device->vendor_id = info->vendor_id;
     device->product_id = info->product_id;
@@ -915,6 +922,7 @@ static SDL_HIDAPI_Device *HIDAPI_AddDevice(const struct SDL_hid_device_info *inf
     device->usage_page = info->usage_page;
     device->usage = info->usage;
     device->is_bluetooth = (info->bus_type == SDL_HID_API_BUS_BLUETOOTH);
+    device->dev_lock = SDL_CreateMutex();
 
     // Need the device name before getting the driver to know whether to ignore this device
     {
@@ -1011,6 +1019,7 @@ static void HIDAPI_DelDevice(SDL_HIDAPI_Device *device)
             }
 
             SDL_SetObjectValid(device, SDL_OBJECT_TYPE_HIDAPI_JOYSTICK, false);
+            SDL_DestroyMutex(device->dev_lock);
             SDL_free(device->manufacturer_string);
             SDL_free(device->product_string);
             SDL_free(device->serial);
@@ -1133,6 +1142,11 @@ static void HIDAPI_UpdateDeviceList(void)
         devs = SDL_hid_enumerate(0, 0);
         if (devs) {
             for (info = devs; info; info = info->next) {
+                if (!info->path) {
+                    // We can't open this, ignore it
+                    continue;
+                }
+
                 device = HIDAPI_GetJoystickByInfo(info->path, info->vendor_id, info->product_id);
                 if (device) {
                     device->seen = true;
@@ -1431,7 +1445,12 @@ void HIDAPI_UpdateDevices(void)
                 continue;
             }
             if (device->driver) {
-                device->driver->UpdateDevice(device);
+                if (SDL_TryLockMutex(device->dev_lock)) {
+                    device->updating = true;
+                    device->driver->UpdateDevice(device);
+                    device->updating = false;
+                    SDL_UnlockMutex(device->dev_lock);
+                }
             }
         }
         HIDAPI_FinishUpdatingDevices();
@@ -1544,7 +1563,11 @@ static bool HIDAPI_JoystickOpen(SDL_Joystick *joystick, int device_index)
     hwdata->device = device;
 
     // Process any pending reports before opening the device
+    SDL_LockMutex(device->dev_lock);
+    device->updating = true;
     device->driver->UpdateDevice(device);
+    device->updating = false;
+    SDL_UnlockMutex(device->dev_lock);
 
     // UpdateDevice() may have called HIDAPI_JoystickDisconnected() if the device went away
     if (device->num_joysticks == 0) {
@@ -1670,12 +1693,21 @@ static void HIDAPI_JoystickClose(SDL_Joystick *joystick) SDL_NO_THREAD_SAFETY_AN
 
     if (joystick->hwdata) {
         SDL_HIDAPI_Device *device = joystick->hwdata->device;
+        int i;
 
         // Wait up to 30 ms for pending rumble to complete
-        for (int i = 0; i < 3; ++i) {
+        if (device->updating) {
+            // Unlock the device so rumble can complete
+            SDL_UnlockMutex(device->dev_lock);
+        }
+        for (i = 0; i < 3; ++i) {
             if (SDL_GetAtomicInt(&device->rumble_pending) > 0) {
                 SDL_Delay(10);
             }
+        }
+        if (device->updating) {
+            // Relock the device
+            SDL_LockMutex(device->dev_lock);
         }
 
         device->driver->CloseJoystick(device, joystick);

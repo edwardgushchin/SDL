@@ -112,7 +112,7 @@ JOB_SPECS = {
     "msvc-x86": JobSpec(name="Windows (MSVC, x86)",                         os=JobOs.WindowsLatest,     platform=SdlPlatform.Msvc,        artifact="SDL-VC-x86",             msvc_arch=MsvcArch.X86,   msvc_project="VisualC/SDL.sln", ),
     "msvc-clang-x64": JobSpec(name="Windows (MSVC, clang-cl x64)",          os=JobOs.WindowsLatest,     platform=SdlPlatform.Msvc,        artifact="SDL-clang-cl-x64",       msvc_arch=MsvcArch.X64,   clang_cl=True, ),
     "msvc-clang-x86": JobSpec(name="Windows (MSVC, clang-cl x86)",          os=JobOs.WindowsLatest,     platform=SdlPlatform.Msvc,        artifact="SDL-clang-cl-x86",       msvc_arch=MsvcArch.X86,   clang_cl=True, ),
-    "msvc-arm64": JobSpec(name="Windows (MSVC, ARM64)",                     os=JobOs.WindowsLatest,     platform=SdlPlatform.Msvc,        artifact="SDL-VC-arm64",           msvc_arch=MsvcArch.Arm64, msvc_project="VisualC/SDL.sln", ),
+    "msvc-arm64": JobSpec(name="Windows (MSVC, ARM64)",                     os=JobOs.WindowsLatest,     platform=SdlPlatform.Msvc,        artifact="SDL-VC-arm64",           msvc_arch=MsvcArch.Arm64, ),
     "msvc-gdk-x64": JobSpec(name="GDK (MSVC, x64)",                         os=JobOs.WindowsLatest,     platform=SdlPlatform.Msvc,        artifact="SDL-VC-GDK",             msvc_arch=MsvcArch.X64,   msvc_project="VisualC-GDK/SDL.sln", gdk=True, no_cmake=True, ),
     "ubuntu-22.04": JobSpec(name="Ubuntu 22.04",                            os=JobOs.Ubuntu22_04,       platform=SdlPlatform.Linux,       artifact="SDL-ubuntu22.04", ),
     "ubuntu-latest": JobSpec(name="Ubuntu (latest)",                        os=JobOs.UbuntuLatest,      platform=SdlPlatform.Linux,       artifact="SDL-ubuntu-latest", ),
@@ -212,8 +212,7 @@ class JobDetails:
     minidump: bool = False
     intel: bool = False
     msys2_msystem: str = ""
-    msys2_env: str = ""
-    msys2_no_perl: bool = False
+    msys2_packages: list[str] = dataclasses.field(default_factory=list)
     werror: bool = True
     msvc_vcvars_arch: str = ""
     msvc_vcvars_sdk: str = ""
@@ -248,8 +247,7 @@ class JobDetails:
             "enable-artifacts": enable_artifacts,
             "shell": self.shell,
             "msys2-msystem": self.msys2_msystem,
-            "msys2-env": self.msys2_env,
-            "msys2-no-perl": self.msys2_no_perl,
+            "msys2-packages": my_shlex_join(self.msys2_packages),
             "android-ndk": self.android_ndk,
             "java": self.java,
             "intel": self.intel,
@@ -411,8 +409,6 @@ def spec_to_job(spec: JobSpec, key: str, trackmem_symbol_names: bool) -> JobDeta
                         msvc_platform = "Win32"
                     case MsvcArch.X64:
                         msvc_platform = "x64"
-                    case MsvcArch.Arm64:
-                        msvc_platform = "ARM64"
                     case _:
                         raise ValueError(f"Unsupported vcxproj architecture (arch={spec.msvc_arch})")
                 if spec.gdk:
@@ -739,15 +735,26 @@ def spec_to_job(spec: JobSpec, key: str, trackmem_symbol_names: bool) -> JobDeta
             job.shell = "msys2 {0}"
             assert spec.msys2_platform
             job.msys2_msystem = spec.msys2_platform.value
-            job.msys2_env = {
+            job.shared_lib = SharedLibType.WIN32
+            job.static_lib = StaticLibType.A
+            msys2_env = {
                 "mingw32": "mingw-w64-i686",
                 "mingw64": "mingw-w64-x86_64",
                 "clang64": "mingw-w64-clang-x86_64",
                 "ucrt64": "mingw-w64-ucrt-x86_64",
             }[spec.msys2_platform.value]
-            job.msys2_no_perl = spec.msys2_platform in (Msys2Platform.Mingw32, )
-            job.shared_lib = SharedLibType.WIN32
-            job.static_lib = StaticLibType.A
+            job.msys2_packages.extend([
+                f"{msys2_env}-cc",
+                f"{msys2_env}-cmake",
+                f"{msys2_env}-ffmpeg",
+                f"{msys2_env}-ninja",
+                f"{msys2_env}-pkg-config",
+            ])
+            if spec.msys2_platform not in (Msys2Platform.Mingw32, ):
+                job.msys2_packages.append(f"{msys2_env}-perl")
+                job.msys2_packages.append(f"{msys2_env}-clang-tools-extra")
+            if job.ccache:
+                job.msys2_packages.append(f"{msys2_env}-ccache")
         case SdlPlatform.Riscos:
             job.ccache = False  # FIXME: enable when container gets upgrade
             # FIXME: Enable SDL_WERROR

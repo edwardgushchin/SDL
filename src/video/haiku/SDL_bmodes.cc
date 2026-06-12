@@ -243,24 +243,20 @@ bool HAIKU_GetDisplayModes(SDL_VideoDevice *_this, SDL_VideoDisplay *display)
     display_mode this_bmode;
     display_mode *bmodes;
     uint32 count, i;
-    bool retval = false;
 
     // Get graphics-hardware supported modes
-    if (bscreen.GetModeList(&bmodes, &count) == B_OK) {
-        if (bscreen.GetMode(&this_bmode) == B_OK) {
-            for (i = 0; i < count; ++i) {
-                // FIXME: Apparently there are errors with colorspace changes
-                if (bmodes[i].space == this_bmode.space) {
-                    _BDisplayModeToSdlDisplayMode(&bmodes[i], &mode);
-                    SDL_AddFullscreenDisplayMode(display, &mode);
-                }
-            }
-            retval = true;
-        }
-        free(bmodes); // This should NOT be SDL_free()
-    }
+    bscreen.GetModeList(&bmodes, &count);
+    bscreen.GetMode(&this_bmode);
 
-    return retval;
+    for (i = 0; i < count; ++i) {
+        // FIXME: Apparently there are errors with colorspace changes
+        if (bmodes[i].space == this_bmode.space) {
+            _BDisplayModeToSdlDisplayMode(&bmodes[i], &mode);
+            SDL_AddFullscreenDisplayMode(display, &mode);
+        }
+    }
+    free(bmodes); // This should NOT be SDL_free()
+    return true;
 }
 
 

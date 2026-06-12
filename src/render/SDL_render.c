@@ -320,6 +320,12 @@ static bool FlushRenderCommands(SDL_Renderer *renderer)
 
     DebugLogRenderCommands(renderer->render_commands);
 
+#if DONT_DRAW_WHILE_HIDDEN
+    // Don't send commands to the GPU while we're hidden
+    if (renderer->hidden) {
+        result = true;
+    } else
+#endif
     result = renderer->RunCommandQueue(renderer, renderer->render_commands, renderer->vertex_data, renderer->vertex_data_used);
 
     // Move the whole render command queue to the unused pool so we can reuse them next time.
@@ -3292,7 +3298,7 @@ bool SDL_GetRenderSafeArea(SDL_Renderer *renderer, SDL_Rect *rect)
 
 bool SDL_SetRenderClipRect(SDL_Renderer *renderer, const SDL_Rect *rect)
 {
-    CHECK_RENDERER_MAGIC(renderer, false);
+    CHECK_RENDERER_MAGIC(renderer, false)
 
     SDL_RenderViewState *view = renderer->view;
     if (rect && rect->w >= 0 && rect->h >= 0) {
@@ -3313,7 +3319,7 @@ bool SDL_GetRenderClipRect(SDL_Renderer *renderer, SDL_Rect *rect)
         SDL_zerop(rect);
     }
 
-    CHECK_RENDERER_MAGIC(renderer, false);
+    CHECK_RENDERER_MAGIC(renderer, false)
 
     if (rect) {
         SDL_copyp(rect, &renderer->view->clip_rect);
@@ -3323,7 +3329,7 @@ bool SDL_GetRenderClipRect(SDL_Renderer *renderer, SDL_Rect *rect)
 
 bool SDL_RenderClipEnabled(SDL_Renderer *renderer)
 {
-    CHECK_RENDERER_MAGIC(renderer, false);
+    CHECK_RENDERER_MAGIC(renderer, false)
     return renderer->view->clipping_enabled;
 }
 
@@ -3581,13 +3587,6 @@ bool SDL_RenderPoints(SDL_Renderer *renderer, const SDL_FPoint *points, int coun
         return true;
     }
 
-#if DONT_DRAW_WHILE_HIDDEN
-    // Don't draw while we're hidden
-    if (renderer->hidden) {
-        return true;
-    }
-#endif
-
     const SDL_RenderViewState *view = renderer->view;
     if ((view->current_scale.x != 1.0f) || (view->current_scale.y != 1.0f)) {
         result = RenderPointsWithRects(renderer, points, count);
@@ -3788,13 +3787,6 @@ bool SDL_RenderLines(SDL_Renderer *renderer, const SDL_FPoint *points, int count
         return true;
     }
 
-#if DONT_DRAW_WHILE_HIDDEN
-    // Don't draw while we're hidden
-    if (renderer->hidden) {
-        return true;
-    }
-#endif
-
     SDL_RenderViewState *view = renderer->view;
     const bool islogical = (view->logical_presentation_mode != SDL_LOGICAL_PRESENTATION_DISABLED);
 
@@ -3904,8 +3896,6 @@ bool SDL_RenderLines(SDL_Renderer *renderer, const SDL_FPoint *points, int count
                     }
                 }
 
-#undef ADD_TRIANGLE
-
                 p = q;
                 cur_index += 4;
             }
@@ -3970,13 +3960,6 @@ bool SDL_RenderRects(SDL_Renderer *renderer, const SDL_FRect *rects, int count)
         return true;
     }
 
-#if DONT_DRAW_WHILE_HIDDEN
-    // Don't draw while we're hidden
-    if (renderer->hidden) {
-        return true;
-    }
-#endif
-
     for (i = 0; i < count; ++i) {
         if (!SDL_RenderRect(renderer, &rects[i])) {
             return false;
@@ -4015,13 +3998,6 @@ bool SDL_RenderFillRects(SDL_Renderer *renderer, const SDL_FRect *rects, int cou
     if (count < 1) {
         return true;
     }
-
-#if DONT_DRAW_WHILE_HIDDEN
-    // Don't draw while we're hidden
-    if (renderer->hidden) {
-        return true;
-    }
-#endif
 
     frects = SDL_small_alloc(SDL_FRect, count, &isstack);
     if (!frects) {
@@ -4113,13 +4089,6 @@ bool SDL_RenderTexture(SDL_Renderer *renderer, SDL_Texture *texture, const SDL_F
         return SDL_SetError("Texture was not created with this renderer");
     }
 
-#if DONT_DRAW_WHILE_HIDDEN
-    // Don't draw while we're hidden
-    if (renderer->hidden) {
-        return true;
-    }
-#endif
-
     SDL_FRect real_srcrect;
     real_srcrect.x = 0.0f;
     real_srcrect.y = 0.0f;
@@ -4166,13 +4135,6 @@ bool SDL_RenderTextureAffine(SDL_Renderer *renderer, SDL_Texture *texture,
     if (!renderer->QueueCopyEx && !renderer->QueueGeometry) {
         return SDL_SetError("Renderer does not support RenderCopyEx");
     }
-
-#if DONT_DRAW_WHILE_HIDDEN
-    // Don't draw while we're hidden
-    if (renderer->hidden) {
-        return true;
-    }
-#endif
 
     real_srcrect.x = 0.0f;
     real_srcrect.y = 0.0f;
@@ -4293,13 +4255,6 @@ bool SDL_RenderTextureRotated(SDL_Renderer *renderer, SDL_Texture *texture,
     if (!renderer->QueueCopyEx && !renderer->QueueGeometry) {
         return SDL_SetError("Renderer does not support RenderCopyEx");
     }
-
-#if DONT_DRAW_WHILE_HIDDEN
-    // Don't draw while we're hidden
-    if (renderer->hidden) {
-        return true;
-    }
-#endif
 
     real_srcrect.x = 0.0f;
     real_srcrect.y = 0.0f;
@@ -4554,13 +4509,6 @@ bool SDL_RenderTextureTiled(SDL_Renderer *renderer, SDL_Texture *texture, const 
     CHECK_PARAM(scale <= 0.0f) {
         return SDL_InvalidParamError("scale");
     }
-
-#if DONT_DRAW_WHILE_HIDDEN
-    // Don't draw while we're hidden
-    if (renderer->hidden) {
-        return true;
-    }
-#endif
 
     real_srcrect.x = 0.0f;
     real_srcrect.y = 0.0f;
@@ -5163,7 +5111,7 @@ static bool SDLCALL SDL_SW_RenderGeometryRaw(SDL_Renderer *renderer,
         }
 
         // Check if UVs within range
-        if (is_quad) {
+        if (is_quad && uv) {
             const float *uv0_ = (const float *)((const char *)uv + A * color_stride);
             const float *uv1_ = (const float *)((const char *)uv + B * color_stride);
             const float *uv2_ = (const float *)((const char *)uv + C * color_stride);
@@ -5340,13 +5288,6 @@ bool SDL_RenderGeometryRaw(SDL_Renderer *renderer,
     if (!renderer->QueueGeometry) {
         return SDL_Unsupported();
     }
-
-#if DONT_DRAW_WHILE_HIDDEN
-    // Don't draw while we're hidden
-    if (renderer->hidden) {
-        return true;
-    }
-#endif
 
     if (num_vertices < 3) {
         return true;
@@ -6210,72 +6151,6 @@ SDL_GPURenderState *SDL_CreateGPURenderState(SDL_Renderer *renderer, const SDL_G
     return state;
 }
 
-bool SDL_SetGPURenderStateSamplerBindings(SDL_GPURenderState *state, int num_sampler_bindings, const SDL_GPUTextureSamplerBinding *sampler_bindings)
-{
-    if (!state) {
-        return SDL_InvalidParamError("state");
-    }
-
-    if (!FlushRenderCommandsIfGPURenderStateNeeded(state)) {
-        return false;
-    }
-
-    Sint32 length = sizeof(SDL_GPUTextureSamplerBinding) * num_sampler_bindings;
-    SDL_GPUTextureSamplerBinding *new_sampler_bindings = (SDL_GPUTextureSamplerBinding *)SDL_realloc(state->sampler_bindings, length);
-    if (!new_sampler_bindings) {
-        return false;
-    }
-    SDL_memcpy(new_sampler_bindings, sampler_bindings, length);
-    state->num_sampler_bindings = num_sampler_bindings;
-    state->sampler_bindings = new_sampler_bindings;
-
-    return true;
-}
-
-bool SDL_SetGPURenderStateStorageTextures(SDL_GPURenderState *state, int num_storage_textures, SDL_GPUTexture *const *storage_textures)
-{
-    if (!state) {
-        return SDL_InvalidParamError("state");
-    }
-
-    if (!FlushRenderCommandsIfGPURenderStateNeeded(state)) {
-        return false;
-    }
-
-    Sint32 length = sizeof(SDL_GPUTexture *) * num_storage_textures;
-    SDL_GPUTexture **new_storage_textures = (SDL_GPUTexture **)SDL_realloc(state->storage_textures, length);
-    if (!new_storage_textures) {
-        return false;
-    }
-    SDL_memcpy(new_storage_textures, storage_textures, length);
-    state->num_storage_textures = num_storage_textures;
-    state->storage_textures = new_storage_textures;
-
-    return true;
-}
-
-bool SDL_SetGPURenderStateStorageBuffers(SDL_GPURenderState *state, int num_storage_buffers, SDL_GPUBuffer *const *storage_buffers)
-{
-    if (!state) {
-        return SDL_InvalidParamError("state");
-    }
-
-    if (!FlushRenderCommandsIfGPURenderStateNeeded(state)) {
-        return false;
-    }
-
-    Sint32 length = sizeof(SDL_GPUBuffer *) * num_storage_buffers;
-    SDL_GPUBuffer **new_storage_buffers = (SDL_GPUBuffer **)SDL_realloc(state->storage_buffers, length);
-    if (!new_storage_buffers) {
-        return false;
-    }
-    SDL_memcpy(new_storage_buffers, storage_buffers, length);
-    state->num_storage_buffers = num_storage_buffers;
-    state->storage_buffers = new_storage_buffers;
-
-    return true;
-}
-
 bool SDL_SetGPURenderStateFragmentUniforms(SDL_GPURenderState *state, Uint32 slot_index, const void *data, Uint32 length)
 {
     if (!state) {
@@ -6347,23 +6222,3 @@ void SDL_DestroyGPURenderState(SDL_GPURenderState *state)
     SDL_free(state->storage_buffers);
     SDL_free(state);
 }
-
-#ifdef SDL_PLATFORM_GDK
-
-void SDLCALL SDL_GDKSuspendRenderer(SDL_Renderer *renderer)
-{
-    CHECK_RENDERER_MAGIC(renderer,);
-    if (renderer->GDKSuspendRenderer != NULL) {
-        renderer->GDKSuspendRenderer(renderer);
-    }
-}
-
-void SDLCALL SDL_GDKResumeRenderer(SDL_Renderer *renderer)
-{
-    CHECK_RENDERER_MAGIC(renderer,);
-    if (renderer->GDKResumeRenderer != NULL) {
-        renderer->GDKResumeRenderer(renderer);
-    }
-}
-
-#endif /* SDL_PLATFORM_GDK */
